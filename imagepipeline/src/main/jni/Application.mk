@@ -21,3 +21,5 @@ NDK_TOOLCHAIN_VERSION := clang
 
 # This hides all symbols exported from libgnustl_static
 FRESCO_CPP_LDFLAGS := -Wl,--gc-sections
+
+APP_PLATFORM := android-14
