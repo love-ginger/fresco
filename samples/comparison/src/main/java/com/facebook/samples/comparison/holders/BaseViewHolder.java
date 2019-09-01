@@ -13,17 +13,15 @@
 package com.facebook.samples.comparison.holders;
 
 import android.content.Context;
-import android.support.v7.widget.RecyclerView;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AbsListView;
+import androidx.recyclerview.widget.RecyclerView;
 import com.facebook.samples.comparison.MainActivity;
 import com.facebook.samples.comparison.instrumentation.Instrumented;
 import com.facebook.samples.comparison.instrumentation.PerfListener;
 
-/**
- * The base ViewHolder with instrumentation
- */
+/** The base ViewHolder with instrumentation */
 public abstract class BaseViewHolder<V extends View & Instrumented>
     extends RecyclerView.ViewHolder {
 
@@ -32,11 +30,7 @@ public abstract class BaseViewHolder<V extends View & Instrumented>
   protected final V mImageView;
   private Context mContext;
 
-  public BaseViewHolder(
-      Context context,
-      View parentView,
-      V imageView,
-      PerfListener perfListener) {
+  public BaseViewHolder(Context context, View parentView, V imageView, PerfListener perfListener) {
     super(imageView);
     this.mContext = context;
     this.mPerfListener = perfListener;
@@ -53,9 +47,7 @@ public abstract class BaseViewHolder<V extends View & Instrumented>
     onBind(model);
   }
 
-  /**
-   * Load an image of the specified uri into the view, asynchronously.
-   */
+  /** Load an image of the specified uri into the view, asynchronously. */
   protected abstract void onBind(String uri);
 
   protected Context getContext() {

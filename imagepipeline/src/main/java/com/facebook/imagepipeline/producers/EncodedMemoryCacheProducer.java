@@ -18,9 +18,7 @@ import com.facebook.imagepipeline.image.EncodedImage;
 import com.facebook.imagepipeline.request.ImageRequest;
 import com.facebook.imagepipeline.systrace.FrescoSystrace;
 
-/**
- * Memory cache producer for the encoded memory cache.
- */
+/** Memory cache producer for the encoded memory cache. */
 public class EncodedMemoryCacheProducer implements Producer<EncodedImage> {
 
   public static final String PRODUCER_NAME = "EncodedMemoryCacheProducer";
@@ -46,9 +44,8 @@ public class EncodedMemoryCacheProducer implements Producer<EncodedImage> {
       if (FrescoSystrace.isTracing()) {
         FrescoSystrace.beginSection("EncodedMemoryCacheProducer#produceResults");
       }
-      final String requestId = producerContext.getId();
-      final ProducerListener listener = producerContext.getListener();
-      listener.onProducerStart(requestId, PRODUCER_NAME);
+      final ProducerListener2 listener = producerContext.getProducerListener();
+      listener.onProducerStart(producerContext, PRODUCER_NAME);
       final ImageRequest imageRequest = producerContext.getImageRequest();
       final CacheKey cacheKey =
           mCacheKeyFactory.getEncodedCacheKey(imageRequest, producerContext.getCallerContext());
@@ -59,12 +56,12 @@ public class EncodedMemoryCacheProducer implements Producer<EncodedImage> {
           EncodedImage cachedEncodedImage = new EncodedImage(cachedReference);
           try {
             listener.onProducerFinishWithSuccess(
-                requestId,
+                producerContext,
                 PRODUCER_NAME,
-                listener.requiresExtraMap(requestId)
+                listener.requiresExtraMap(producerContext, PRODUCER_NAME)
                     ? ImmutableMap.of(EXTRA_CACHED_VALUE_FOUND, "true")
                     : null);
-            listener.onUltimateProducerReached(requestId, PRODUCER_NAME, true);
+            listener.onUltimateProducerReached(producerContext, PRODUCER_NAME, true);
             consumer.onProgressUpdate(1f);
             consumer.onNewResult(cachedEncodedImage, Consumer.IS_LAST);
             return;
@@ -76,12 +73,12 @@ public class EncodedMemoryCacheProducer implements Producer<EncodedImage> {
         if (producerContext.getLowestPermittedRequestLevel().getValue()
             >= ImageRequest.RequestLevel.ENCODED_MEMORY_CACHE.getValue()) {
           listener.onProducerFinishWithSuccess(
-              requestId,
+              producerContext,
               PRODUCER_NAME,
-              listener.requiresExtraMap(requestId)
+              listener.requiresExtraMap(producerContext, PRODUCER_NAME)
                   ? ImmutableMap.of(EXTRA_CACHED_VALUE_FOUND, "false")
                   : null);
-          listener.onUltimateProducerReached(requestId, PRODUCER_NAME, false);
+          listener.onUltimateProducerReached(producerContext, PRODUCER_NAME, false);
           consumer.onNewResult(null, Consumer.IS_LAST);
           return;
         }
@@ -92,9 +89,9 @@ public class EncodedMemoryCacheProducer implements Producer<EncodedImage> {
             new EncodedMemoryCacheConsumer(consumer, mMemoryCache, cacheKey, isMemoryCacheEnabled);
 
         listener.onProducerFinishWithSuccess(
-            requestId,
+            producerContext,
             PRODUCER_NAME,
-            listener.requiresExtraMap(requestId)
+            listener.requiresExtraMap(producerContext, PRODUCER_NAME)
                 ? ImmutableMap.of(EXTRA_CACHED_VALUE_FOUND, "false")
                 : null);
         mInputProducer.produceResults(consumerOfInputProducer, producerContext);

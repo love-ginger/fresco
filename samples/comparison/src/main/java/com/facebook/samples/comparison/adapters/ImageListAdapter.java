@@ -13,15 +13,13 @@
 package com.facebook.samples.comparison.adapters;
 
 import android.content.Context;
-import android.support.v7.widget.RecyclerView;
+import androidx.recyclerview.widget.RecyclerView;
 import com.facebook.samples.comparison.holders.BaseViewHolder;
 import com.facebook.samples.comparison.instrumentation.PerfListener;
 import java.util.LinkedList;
 import java.util.List;
 
-/**
- * Base class for RecyclerView Adapters
- */
+/** Base class for RecyclerView Adapters */
 public abstract class ImageListAdapter extends RecyclerView.Adapter<BaseViewHolder<?>> {
 
   private final PerfListener mPerfListener;
@@ -66,8 +64,6 @@ public abstract class ImageListAdapter extends RecyclerView.Adapter<BaseViewHold
     holder.bind(getItem(position));
   }
 
-  /**
-   * Releases any resources and tears down the adapter.
-   */
+  /** Releases any resources and tears down the adapter. */
   public abstract void shutDown();
 }

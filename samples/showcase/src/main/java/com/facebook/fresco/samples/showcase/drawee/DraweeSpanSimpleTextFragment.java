@@ -15,12 +15,12 @@ import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.net.Uri;
 import android.os.Bundle;
-import android.support.annotation.Nullable;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.Spinner;
+import androidx.annotation.Nullable;
 import com.facebook.drawee.backends.pipeline.Fresco;
 import com.facebook.drawee.drawable.ScalingUtils;
 import com.facebook.drawee.generic.GenericDraweeHierarchyBuilder;
@@ -34,9 +34,7 @@ import com.facebook.fresco.samples.showcase.R;
 import com.facebook.fresco.samples.showcase.common.SimpleScaleTypeAdapter;
 import com.facebook.fresco.samples.showcase.misc.ImageUriProvider;
 
-/**
- * Simple fragment that displays text with inline images using {@link DraweeSpan}.
- */
+/** Simple fragment that displays text with inline images using {@link DraweeSpan}. */
 public class DraweeSpanSimpleTextFragment extends BaseShowcaseFragment {
 
   private SimpleDraweeSpanTextView mDraweeSpanTextView;
@@ -53,30 +51,27 @@ public class DraweeSpanSimpleTextFragment extends BaseShowcaseFragment {
 
   @Override
   public void onViewCreated(View view, @Nullable Bundle savedInstanceState) {
-    final ImageUriProvider imageUriProvider = ImageUriProvider.getInstance(getContext());
-    mInlineImageUri = imageUriProvider.createSampleUri(ImageUriProvider.ImageSize.M);
-    mInlineAnimatedImageUri =
-        Uri.parse(
-            "http://frescolib.org/static/sample-images/fresco_logo_anim_full_frames_with_pause_m.gif");
+    mInlineImageUri = sampleUris().createSampleUri(ImageUriProvider.ImageSize.M);
+    mInlineAnimatedImageUri = sampleUris().createGifUriWithPause(ImageUriProvider.ImageSize.M);
 
     mDraweeSpanTextView = (SimpleDraweeSpanTextView) view.findViewById(R.id.drawee_text_view);
     final Spinner scaleType = (Spinner) view.findViewById(R.id.scaleType);
 
     final SimpleScaleTypeAdapter scaleTypeAdapter = SimpleScaleTypeAdapter.createForAllScaleTypes();
     scaleType.setAdapter(scaleTypeAdapter);
-    scaleType.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-      @Override
-      public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-        final SimpleScaleTypeAdapter.Entry spinnerEntry =
-            (SimpleScaleTypeAdapter.Entry) scaleTypeAdapter.getItem(position);
-        mScaleType = spinnerEntry.scaleType;
-        updateText();
-      }
+    scaleType.setOnItemSelectedListener(
+        new AdapterView.OnItemSelectedListener() {
+          @Override
+          public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+            final SimpleScaleTypeAdapter.Entry spinnerEntry =
+                (SimpleScaleTypeAdapter.Entry) scaleTypeAdapter.getItem(position);
+            mScaleType = spinnerEntry.scaleType;
+            updateText();
+          }
 
-      @Override
-      public void onNothingSelected(AdapterView<?> parent) {
-      }
-    });
+          @Override
+          public void onNothingSelected(AdapterView<?> parent) {}
+        });
 
     updateText();
   }
@@ -88,13 +83,13 @@ public class DraweeSpanSimpleTextFragment extends BaseShowcaseFragment {
 
     DraweeSpanStringBuilder draweeSpanStringBuilder = new DraweeSpanStringBuilder(text);
 
-    DraweeHierarchy draweeHierarchy = GenericDraweeHierarchyBuilder.newInstance(getResources())
-        .setPlaceholderImage(new ColorDrawable(Color.RED))
-        .setActualImageScaleType(mScaleType)
-        .build();
-    DraweeController controller = Fresco.newDraweeControllerBuilder()
-        .setUri(mInlineImageUri)
-        .build();
+    DraweeHierarchy draweeHierarchy =
+        GenericDraweeHierarchyBuilder.newInstance(getResources())
+            .setPlaceholderImage(new ColorDrawable(Color.RED))
+            .setActualImageScaleType(mScaleType)
+            .build();
+    DraweeController controller =
+        Fresco.newDraweeControllerBuilder().setUri(mInlineImageUri).build();
 
     draweeSpanStringBuilder.setImageSpan(
         getContext(), /* Context */

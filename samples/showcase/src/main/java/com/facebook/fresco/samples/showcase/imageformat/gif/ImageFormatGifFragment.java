@@ -13,8 +13,6 @@ package com.facebook.fresco.samples.showcase.imageformat.gif;
 
 import android.net.Uri;
 import android.os.Bundle;
-import android.support.annotation.Nullable;
-import android.support.v7.widget.SwitchCompat;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -23,6 +21,8 @@ import android.widget.BaseAdapter;
 import android.widget.CompoundButton;
 import android.widget.Spinner;
 import android.widget.TextView;
+import androidx.annotation.Nullable;
+import androidx.appcompat.widget.SwitchCompat;
 import com.facebook.animated.giflite.GifDecoder;
 import com.facebook.drawee.backends.pipeline.Fresco;
 import com.facebook.drawee.backends.pipeline.PipelineDraweeControllerBuilder;
@@ -30,26 +30,14 @@ import com.facebook.drawee.view.SimpleDraweeView;
 import com.facebook.fresco.samples.showcase.BaseShowcaseFragment;
 import com.facebook.fresco.samples.showcase.R;
 import com.facebook.fresco.samples.showcase.misc.CheckerBoardDrawable;
+import com.facebook.fresco.samples.showcase.misc.ImageUriProvider;
 import com.facebook.imagepipeline.common.ImageDecodeOptions;
 import com.facebook.imagepipeline.request.ImageRequestBuilder;
 
-/**
- * GIF example that illustrates how to display a simple GIF file
- */
+/** GIF example that illustrates how to display a simple GIF file */
 public class ImageFormatGifFragment extends BaseShowcaseFragment {
 
-  public static final Uri URI_GIF_S =
-      Uri.parse("http://frescolib.org/static/sample-images/fresco_logo_anim_full_frames_with_pause_s.gif");
-  public static final Uri URI_GIF_M =
-      Uri.parse("http://frescolib.org/static/sample-images/fresco_logo_anim_full_frames_with_pause_m.gif");
-  public static final Uri URI_GIF_L =
-      Uri.parse("http://frescolib.org/static/sample-images/fresco_logo_anim_full_frames_with_pause_l.gif");
-
-  private static final Entry[] SPINNER_ENTRIES = new Entry[]{
-      new Entry(R.string.format_gif_label_small, URI_GIF_S),
-      new Entry(R.string.format_gif_label_medium, URI_GIF_M),
-      new Entry(R.string.format_gif_label_large, URI_GIF_L),
-  };
+  private Entry[] mSpinnerEntries;
 
   private Spinner mSpinner;
   private SimpleDraweeView mSimpleDraweeView;
@@ -58,36 +46,49 @@ public class ImageFormatGifFragment extends BaseShowcaseFragment {
   @Nullable
   @Override
   public View onCreateView(
-      LayoutInflater inflater,
-      @Nullable ViewGroup container,
-      @Nullable Bundle savedInstanceState) {
+      LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
     return inflater.inflate(R.layout.fragment_format_gif, container, false);
   }
 
   @Override
   public void onViewCreated(View view, @Nullable Bundle savedInstanceState) {
 
+    mSpinnerEntries =
+        new Entry[] {
+          new Entry(
+              R.string.format_gif_label_small,
+              sampleUris().createGifUri(ImageUriProvider.ImageSize.S)),
+          new Entry(
+              R.string.format_gif_label_medium,
+              sampleUris().createGifUri(ImageUriProvider.ImageSize.M)),
+          new Entry(
+              R.string.format_gif_label_large,
+              sampleUris().createGifUri(ImageUriProvider.ImageSize.L)),
+        };
+
     mSimpleDraweeView = (SimpleDraweeView) view.findViewById(R.id.drawee_view);
 
     final SwitchCompat switchBackground = (SwitchCompat) view.findViewById(R.id.switch_background);
-    switchBackground.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-      @Override
-      public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-        mSimpleDraweeView.getHierarchy().setBackgroundImage(isChecked
-            ? new CheckerBoardDrawable(getResources())
-            : null);
-      }
-    });
+    switchBackground.setOnCheckedChangeListener(
+        new CompoundButton.OnCheckedChangeListener() {
+          @Override
+          public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+            mSimpleDraweeView
+                .getHierarchy()
+                .setBackgroundImage(isChecked ? new CheckerBoardDrawable(getResources()) : null);
+          }
+        });
 
     final SwitchCompat switchAspect = (SwitchCompat) view.findViewById(R.id.switch_aspect_ratio);
-    switchAspect.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-      @Override
-      public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-        ViewGroup.LayoutParams layoutParams = mSimpleDraweeView.getLayoutParams();
-        layoutParams.height = layoutParams.width * (isChecked ? 2 : 1);
-        mSimpleDraweeView.setLayoutParams(layoutParams);
-      }
-    });
+    switchAspect.setOnCheckedChangeListener(
+        new CompoundButton.OnCheckedChangeListener() {
+          @Override
+          public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+            ViewGroup.LayoutParams layoutParams = mSimpleDraweeView.getLayoutParams();
+            layoutParams.height = layoutParams.width * (isChecked ? 2 : 1);
+            mSimpleDraweeView.setLayoutParams(layoutParams);
+          }
+        });
 
     mSpinner = (Spinner) view.findViewById(R.id.spinner);
     mSpinner.setAdapter(new SimpleUriListAdapter());
@@ -128,7 +129,7 @@ public class ImageFormatGifFragment extends BaseShowcaseFragment {
   }
 
   private void refreshAnimation() {
-    final Entry spinnerEntry = SPINNER_ENTRIES[mSpinner.getSelectedItemPosition()];
+    final Entry spinnerEntry = mSpinnerEntries[mSpinner.getSelectedItemPosition()];
     setAnimationUri(spinnerEntry.uri);
   }
 
@@ -158,12 +159,12 @@ public class ImageFormatGifFragment extends BaseShowcaseFragment {
 
     @Override
     public int getCount() {
-      return SPINNER_ENTRIES.length;
+      return mSpinnerEntries.length;
     }
 
     @Override
     public Entry getItem(int position) {
-      return SPINNER_ENTRIES[position];
+      return mSpinnerEntries[position];
     }
 
     @Override
@@ -175,12 +176,14 @@ public class ImageFormatGifFragment extends BaseShowcaseFragment {
     public View getView(int position, View convertView, ViewGroup parent) {
       final LayoutInflater layoutInflater = getLayoutInflater(null);
 
-      final View view = convertView != null
-          ? convertView
-          : layoutInflater.inflate(android.R.layout.simple_spinner_dropdown_item, parent, false);
+      final View view =
+          convertView != null
+              ? convertView
+              : layoutInflater.inflate(
+                  android.R.layout.simple_spinner_dropdown_item, parent, false);
 
       final TextView textView = (TextView) view.findViewById(android.R.id.text1);
-      textView.setText(SPINNER_ENTRIES[position].descriptionId);
+      textView.setText(mSpinnerEntries[position].descriptionId);
 
       return view;
     }

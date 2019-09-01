@@ -16,7 +16,7 @@ import javax.annotation.Nullable;
  */
 public class DebuggingCacheKey extends SimpleCacheKey {
 
-  private final Object mCallerContext;
+  private final @Nullable Object mCallerContext;
   private final Uri mSourceUri;
 
   public DebuggingCacheKey(String key, @Nullable Object callerContext, Uri sourceUri) {
@@ -30,9 +30,7 @@ public class DebuggingCacheKey extends SimpleCacheKey {
     return mCallerContext;
   }
 
-  /**
-   * Original URI the image was fetched from.
-   */
+  /** Original URI the image was fetched from. */
   public Uri getSourceUri() {
     return mSourceUri;
   }

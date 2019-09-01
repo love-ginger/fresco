@@ -35,13 +35,11 @@ import org.powermock.modules.junit4.rule.PowerMockRule;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.*;
 
-/**
- * Basic tests for LocalContentUriThumbnailFetchProducer
- */
+/** Basic tests for LocalContentUriThumbnailFetchProducer */
 @RunWith(RobolectricTestRunner.class)
-@PowerMockIgnore({ "org.mockito.*", "org.robolectric.*", "android.*" })
-@PrepareForTest({ LocalContentUriThumbnailFetchProducer.class, MediaStore.Images.class })
-@Config(manifest= Config.NONE)
+@PowerMockIgnore({"org.mockito.*", "org.robolectric.*", "androidx.*", "android.*"})
+@PrepareForTest({LocalContentUriThumbnailFetchProducer.class, MediaStore.Images.class})
+@Config(manifest = Config.NONE)
 public class LocalContentUriThumbnailFetchProducerTest {
   private static final String PRODUCER_NAME = LocalContentUriThumbnailFetchProducer.PRODUCER_NAME;
   private static final String THUMBNAIL_FILE_NAME = "////sdcard/thumb.jpg";
@@ -53,7 +51,7 @@ public class LocalContentUriThumbnailFetchProducerTest {
   @Mock public ContentResolver mContentResolver;
   @Mock public Consumer<EncodedImage> mConsumer;
   @Mock public ImageRequest mImageRequest;
-  @Mock public ProducerListener mProducerListener;
+  @Mock public ProducerListener2 mProducerListener;
   @Mock public Exception mException;
   @Mock public Cursor mCursor;
   @Mock public File mThumbnailFile;
@@ -69,22 +67,21 @@ public class LocalContentUriThumbnailFetchProducerTest {
     MockitoAnnotations.initMocks(this);
 
     mExecutor = new TestExecutorService(new FakeClock());
-    mLocalContentUriThumbnailFetchProducer = new LocalContentUriThumbnailFetchProducer(
-        mExecutor,
-        mPooledByteBufferFactory,
-        mContentResolver
-    );
+    mLocalContentUriThumbnailFetchProducer =
+        new LocalContentUriThumbnailFetchProducer(
+            mExecutor, mPooledByteBufferFactory, mContentResolver);
     mContentUri = Uri.parse("content://media/external/images/media/1");
 
-    mProducerContext = new SettableProducerContext(
-        mImageRequest,
-        mRequestId,
-        mProducerListener,
-        mock(Object.class),
-        ImageRequest.RequestLevel.FULL_FETCH,
-        false,
-        true,
-        Priority.MEDIUM);
+    mProducerContext =
+        new SettableProducerContext(
+            mImageRequest,
+            mRequestId,
+            mProducerListener,
+            mock(Object.class),
+            ImageRequest.RequestLevel.FULL_FETCH,
+            false,
+            true,
+            Priority.MEDIUM);
     when(mImageRequest.getSourceUri()).thenReturn(mContentUri);
 
     mockMediaStoreCursor();
@@ -94,8 +91,9 @@ public class LocalContentUriThumbnailFetchProducerTest {
 
   private void mockMediaStoreCursor() {
     PowerMockito.mockStatic(MediaStore.Images.Thumbnails.class, File.class);
-    PowerMockito.when(MediaStore.Images.Thumbnails
-        .queryMiniThumbnail(any(ContentResolver.class), anyLong(), anyInt(), any(String[].class)))
+    PowerMockito.when(
+            MediaStore.Images.Thumbnails.queryMiniThumbnail(
+                any(ContentResolver.class), anyLong(), anyInt(), any(String[].class)))
         .thenReturn(mCursor);
 
     final int dataColumnIndex = 5;
@@ -105,9 +103,7 @@ public class LocalContentUriThumbnailFetchProducerTest {
   }
 
   private void mockThumbnailFile() throws Exception {
-    PowerMockito.whenNew(File.class)
-        .withArguments(THUMBNAIL_FILE_NAME)
-        .thenReturn(mThumbnailFile);
+    PowerMockito.whenNew(File.class).withArguments(THUMBNAIL_FILE_NAME).thenReturn(mThumbnailFile);
     when(mThumbnailFile.exists()).thenReturn(true);
     when(mThumbnailFile.length()).thenReturn(THUMBNAIL_FILE_SIZE);
 
@@ -118,18 +114,17 @@ public class LocalContentUriThumbnailFetchProducerTest {
     EncodedImage encodedImage = mock(EncodedImage.class);
     when(encodedImage.getSize()).thenReturn((int) THUMBNAIL_FILE_SIZE);
 
-    PowerMockito.whenNew(EncodedImage.class)
-        .withAnyArguments()
-        .thenReturn(encodedImage);
+    PowerMockito.whenNew(EncodedImage.class).withAnyArguments().thenReturn(encodedImage);
   }
 
   private void mockContentResolver() throws Exception {
     when(mContentResolver.query(
-        eq(mContentUri),
-        any(String[].class),
-        any(String.class),
-        any(String[].class),
-        any(String.class))).thenReturn(mCursor);
+            eq(mContentUri),
+            any(String[].class),
+            any(String.class),
+            any(String[].class),
+            any(String.class)))
+        .thenReturn(mCursor);
     when(mContentResolver.openInputStream(mContentUri)).thenReturn(mock(InputStream.class));
   }
 
@@ -140,8 +135,9 @@ public class LocalContentUriThumbnailFetchProducerTest {
     produceResults();
 
     mProducerContext.cancel();
-    verify(mProducerListener).onProducerStart(mRequestId, PRODUCER_NAME);
-    verify(mProducerListener).onProducerFinishWithCancellation(mRequestId, PRODUCER_NAME, null);
+    verify(mProducerListener).onProducerStart(mProducerContext, PRODUCER_NAME);
+    verify(mProducerListener)
+        .onProducerFinishWithCancellation(mProducerContext, PRODUCER_NAME, null);
     verify(mConsumer).onCancellation();
     mExecutor.runUntilIdle();
     verifyZeroInteractions(mPooledByteBufferFactory);
@@ -158,9 +154,9 @@ public class LocalContentUriThumbnailFetchProducerTest {
     produceResultsAndRunUntilIdle();
 
     assertConsumerReceivesImage();
-    verify(mProducerListener).onProducerStart(mRequestId, PRODUCER_NAME);
-    verify(mProducerListener).onProducerFinishWithSuccess(mRequestId, PRODUCER_NAME, null);
-    verify(mProducerListener).onUltimateProducerReached(mRequestId, PRODUCER_NAME, true);
+    verify(mProducerListener).onProducerStart(mProducerContext, PRODUCER_NAME);
+    verify(mProducerListener).onProducerFinishWithSuccess(mProducerContext, PRODUCER_NAME, null);
+    verify(mProducerListener).onUltimateProducerReached(mProducerContext, PRODUCER_NAME, true);
   }
 
   @Test(expected = RuntimeException.class)
@@ -169,10 +165,10 @@ public class LocalContentUriThumbnailFetchProducerTest {
 
     when(mPooledByteBufferFactory.newByteBuffer(any(InputStream.class))).thenThrow(mException);
     verify(mConsumer).onFailure(mException);
-    verify(mProducerListener).onProducerStart(mRequestId, PRODUCER_NAME);
-    verify(mProducerListener).onProducerFinishWithFailure(
-        mRequestId, PRODUCER_NAME, mException, null);
-    verify(mProducerListener).onUltimateProducerReached(mRequestId, PRODUCER_NAME, false);
+    verify(mProducerListener).onProducerStart(mProducerContext, PRODUCER_NAME);
+    verify(mProducerListener)
+        .onProducerFinishWithFailure(mProducerContext, PRODUCER_NAME, mException, null);
+    verify(mProducerListener).onUltimateProducerReached(mProducerContext, PRODUCER_NAME, false);
   }
 
   @Test

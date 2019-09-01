@@ -17,14 +17,12 @@ import android.graphics.RectF;
 import android.view.MotionEvent;
 
 /**
- * Interface for implementing a controller that works with {@link ZoomableDraweeView}
- * to control the zoom.
+ * Interface for implementing a controller that works with {@link ZoomableDraweeView} to control the
+ * zoom.
  */
 public interface ZoomableController {
 
-  /**
-   * Listener interface.
-   */
+  /** Listener interface. */
   interface Listener {
 
     /**
@@ -57,8 +55,8 @@ public interface ZoomableController {
   void setEnabled(boolean enabled);
 
   /**
-   * Gets whether the controller is enabled. This should return the last value passed to
-   * {@link #setEnabled}.
+   * Gets whether the controller is enabled. This should return the last value passed to {@link
+   * #setEnabled}.
    *
    * @return whether the controller is enabled.
    */
@@ -79,27 +77,28 @@ public interface ZoomableController {
    */
   float getScaleFactor();
 
-  /**
-   * Returns true if the zoomable transform is identity matrix, and the controller is idle.
-   */
+  /** Returns true if the zoomable transform is identity matrix, and the controller is idle. */
   boolean isIdentity();
 
   /**
    * Returns true if the transform was corrected during the last update.
    *
-   * This mainly happens when a gesture would cause the image to get out of limits and the
+   * <p>This mainly happens when a gesture would cause the image to get out of limits and the
    * transform gets corrected in order to prevent that.
    */
   boolean wasTransformCorrected();
 
-  /**
-   * See {@link android.support.v4.view.ScrollingView}.
-   */
+  /** See {@link androidx.core.view.ScrollingView}. */
   int computeHorizontalScrollRange();
+
   int computeHorizontalScrollOffset();
+
   int computeHorizontalScrollExtent();
+
   int computeVerticalScrollRange();
+
   int computeVerticalScrollOffset();
+
   int computeVerticalScrollExtent();
 
   /**

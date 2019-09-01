@@ -25,9 +25,9 @@ import javax.annotation.Nullable;
 /**
  * A producer to actually fetch images from the network.
  *
- * <p> Downloaded bytes may be passed to the consumer as they are downloaded, but not more often
- * than {@link #TIME_BETWEEN_PARTIAL_RESULTS_MS}.
-
+ * <p>Downloaded bytes may be passed to the consumer as they are downloaded, but not more often than
+ * {@link #TIME_BETWEEN_PARTIAL_RESULTS_MS}.
+ *
  * <p>Clients should provide an instance of {@link NetworkFetcher} to make use of their networking
  * stack. Use {@link HttpUrlConnectionNetworkFetcher} as a model.
  */
@@ -40,7 +40,7 @@ public class NetworkFetchProducer implements Producer<EncodedImage> {
   /**
    * Time between two consecutive partial results are propagated upstream
    *
-   * TODO 5399646: make this configurable
+   * <p>TODO 5399646: make this configurable
    */
   @VisibleForTesting static final long TIME_BETWEEN_PARTIAL_RESULTS_MS = 100;
 
@@ -59,8 +59,7 @@ public class NetworkFetchProducer implements Producer<EncodedImage> {
 
   @Override
   public void produceResults(Consumer<EncodedImage> consumer, ProducerContext context) {
-    context.getListener()
-        .onProducerStart(context.getId(), PRODUCER_NAME);
+    context.getProducerListener().onProducerStart(context, PRODUCER_NAME);
     final FetchState fetchState = mNetworkFetcher.createFetchState(consumer, context);
     mNetworkFetcher.fetch(
         fetchState,
@@ -138,11 +137,14 @@ public class NetworkFetchProducer implements Producer<EncodedImage> {
   protected void maybeHandleIntermediateResult(
       PooledByteBufferOutputStream pooledOutputStream, FetchState fetchState) {
     final long nowMs = SystemClock.uptimeMillis();
-    if (shouldPropagateIntermediateResults(fetchState) &&
-        nowMs - fetchState.getLastIntermediateResultTimeMs() >= TIME_BETWEEN_PARTIAL_RESULTS_MS) {
+    if (shouldPropagateIntermediateResults(fetchState)
+        && nowMs - fetchState.getLastIntermediateResultTimeMs()
+            >= TIME_BETWEEN_PARTIAL_RESULTS_MS) {
       fetchState.setLastIntermediateResultTimeMs(nowMs);
-      fetchState.getListener()
-          .onProducerEvent(fetchState.getId(), PRODUCER_NAME, INTERMEDIATE_RESULT_PRODUCER_EVENT);
+      fetchState
+          .getListener()
+          .onProducerEvent(
+              fetchState.getContext(), PRODUCER_NAME, INTERMEDIATE_RESULT_PRODUCER_EVENT);
       notifyConsumer(
           pooledOutputStream,
           fetchState.getOnNewResultStatusFlags(),
@@ -154,9 +156,9 @@ public class NetworkFetchProducer implements Producer<EncodedImage> {
   protected void handleFinalResult(
       PooledByteBufferOutputStream pooledOutputStream, FetchState fetchState) {
     Map<String, String> extraMap = getExtraMap(fetchState, pooledOutputStream.size());
-    ProducerListener listener = fetchState.getListener();
-    listener.onProducerFinishWithSuccess(fetchState.getId(), PRODUCER_NAME, extraMap);
-    listener.onUltimateProducerReached(fetchState.getId(), PRODUCER_NAME, true);
+    ProducerListener2 listener = fetchState.getListener();
+    listener.onProducerFinishWithSuccess(fetchState.getContext(), PRODUCER_NAME, extraMap);
+    listener.onUltimateProducerReached(fetchState.getContext(), PRODUCER_NAME, true);
     notifyConsumer(
         pooledOutputStream,
         Consumer.IS_LAST | fetchState.getOnNewResultStatusFlags(),
@@ -184,16 +186,19 @@ public class NetworkFetchProducer implements Producer<EncodedImage> {
   }
 
   private void onFailure(FetchState fetchState, Throwable e) {
-    fetchState.getListener()
-        .onProducerFinishWithFailure(fetchState.getId(), PRODUCER_NAME, e, null);
-    fetchState.getListener()
-        .onUltimateProducerReached(fetchState.getId(), PRODUCER_NAME, false);
+    fetchState
+        .getListener()
+        .onProducerFinishWithFailure(fetchState.getContext(), PRODUCER_NAME, e, null);
+    fetchState
+        .getListener()
+        .onUltimateProducerReached(fetchState.getContext(), PRODUCER_NAME, false);
     fetchState.getConsumer().onFailure(e);
   }
 
   private void onCancellation(FetchState fetchState) {
-    fetchState.getListener()
-        .onProducerFinishWithCancellation(fetchState.getId(), PRODUCER_NAME, null);
+    fetchState
+        .getListener()
+        .onProducerFinishWithCancellation(fetchState.getContext(), PRODUCER_NAME, null);
     fetchState.getConsumer().onCancellation();
   }
 
@@ -206,7 +211,7 @@ public class NetworkFetchProducer implements Producer<EncodedImage> {
 
   @Nullable
   private Map<String, String> getExtraMap(FetchState fetchState, int byteSize) {
-    if (!fetchState.getListener().requiresExtraMap(fetchState.getId())) {
+    if (!fetchState.getListener().requiresExtraMap(fetchState.getContext(), PRODUCER_NAME)) {
       return null;
     }
     return mNetworkFetcher.getExtraMap(fetchState, byteSize);

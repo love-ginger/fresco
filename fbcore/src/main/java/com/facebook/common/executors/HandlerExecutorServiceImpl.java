@@ -15,9 +15,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
 
-/**
- * A {@link HandlerExecutorService} implementation.
- */
+/** A {@link HandlerExecutorService} implementation. */
 public class HandlerExecutorServiceImpl extends AbstractExecutorService
     implements HandlerExecutorService {
 
@@ -58,7 +56,7 @@ public class HandlerExecutorServiceImpl extends AbstractExecutorService
   }
 
   @Override
-  protected <T> ScheduledFutureImpl<T> newTaskFor(Runnable runnable, T value) {
+  protected <T> ScheduledFutureImpl<T> newTaskFor(Runnable runnable, @Nullable T value) {
     return new ScheduledFutureImpl<T>(mHandler, runnable, value);
   }
 

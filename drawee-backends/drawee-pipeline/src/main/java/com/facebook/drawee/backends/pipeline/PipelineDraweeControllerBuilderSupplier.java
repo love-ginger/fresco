@@ -10,6 +10,7 @@ package com.facebook.drawee.backends.pipeline;
 import android.content.Context;
 import com.facebook.common.executors.UiThreadImmediateExecutorService;
 import com.facebook.common.internal.Supplier;
+import com.facebook.drawee.backends.pipeline.info.ImagePerfDataListener;
 import com.facebook.drawee.components.DeferredReleaser;
 import com.facebook.drawee.controller.ControllerListener;
 import com.facebook.imagepipeline.core.ImagePipeline;
@@ -17,21 +18,21 @@ import com.facebook.imagepipeline.core.ImagePipelineFactory;
 import java.util.Set;
 import javax.annotation.Nullable;
 
-public class PipelineDraweeControllerBuilderSupplier implements
-    Supplier<PipelineDraweeControllerBuilder> {
+public class PipelineDraweeControllerBuilderSupplier
+    implements Supplier<PipelineDraweeControllerBuilder> {
 
   private final Context mContext;
   private final ImagePipeline mImagePipeline;
   private final PipelineDraweeControllerFactory mPipelineDraweeControllerFactory;
   private final Set<ControllerListener> mBoundControllerListeners;
+  private final @Nullable ImagePerfDataListener mDefaultImagePerfDataListener;
 
   public PipelineDraweeControllerBuilderSupplier(Context context) {
     this(context, null);
   }
 
   public PipelineDraweeControllerBuilderSupplier(
-      Context context,
-      @Nullable DraweeConfig draweeConfig) {
+      Context context, @Nullable DraweeConfig draweeConfig) {
     this(context, ImagePipelineFactory.getInstance(), draweeConfig);
   }
 
@@ -61,21 +62,19 @@ public class PipelineDraweeControllerBuilderSupplier implements
         imagePipelineFactory.getAnimatedDrawableFactory(context),
         UiThreadImmediateExecutorService.getInstance(),
         mImagePipeline.getBitmapMemoryCache(),
-        draweeConfig != null
-            ? draweeConfig.getCustomDrawableFactories()
-            : null,
-        draweeConfig != null
-            ? draweeConfig.getDebugOverlayEnabledSupplier()
-            : null);
+        draweeConfig != null ? draweeConfig.getCustomDrawableFactories() : null,
+        draweeConfig != null ? draweeConfig.getDebugOverlayEnabledSupplier() : null);
     mBoundControllerListeners = boundControllerListeners;
+
+    mDefaultImagePerfDataListener =
+        draweeConfig != null ? draweeConfig.getImagePerfDataListener() : null;
   }
 
   @Override
   public PipelineDraweeControllerBuilder get() {
-    return new PipelineDraweeControllerBuilder(
-        mContext,
-        mPipelineDraweeControllerFactory,
-        mImagePipeline,
-        mBoundControllerListeners);
+    PipelineDraweeControllerBuilder pipelineDraweeControllerBuilder =
+        new PipelineDraweeControllerBuilder(
+            mContext, mPipelineDraweeControllerFactory, mImagePipeline, mBoundControllerListeners);
+    return pipelineDraweeControllerBuilder.setPerfDataListener(mDefaultImagePerfDataListener);
   }
 }

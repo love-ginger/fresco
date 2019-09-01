@@ -33,7 +33,8 @@ public class ImagePerfState {
   private long mImageRequestEndTimeMs = UNSET;
 
   // Image pipeline information
-  private @ImageOrigin int mImageOrigin = UNSET;
+  private @ImageOrigin int mImageOrigin = ImageOrigin.UNKNOWN;
+  private @Nullable String mUltimateProducerName;
   private boolean mIsPrefetch;
 
   // On screen information
@@ -64,6 +65,7 @@ public class ImagePerfState {
     mImageRequestEndTimeMs = UNSET;
 
     mImageOrigin = ImageOrigin.UNKNOWN;
+    mUltimateProducerName = null;
     mIsPrefetch = false;
 
     mOnScreenWidthPx = UNSET;
@@ -143,6 +145,10 @@ public class ImagePerfState {
     mImageOrigin = imageOrigin;
   }
 
+  public void setUltimateProducerName(@Nullable String ultimateProducerName) {
+    mUltimateProducerName = ultimateProducerName;
+  }
+
   public void setPrefetch(boolean prefetch) {
     mIsPrefetch = prefetch;
   }
@@ -182,6 +188,7 @@ public class ImagePerfState {
         mImageRequestStartTimeMs,
         mImageRequestEndTimeMs,
         mImageOrigin,
+        mUltimateProducerName,
         mIsPrefetch,
         mOnScreenWidthPx,
         mOnScreenHeightPx,

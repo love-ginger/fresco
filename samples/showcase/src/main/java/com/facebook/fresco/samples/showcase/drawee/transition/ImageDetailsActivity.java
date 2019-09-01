@@ -17,17 +17,15 @@ import android.graphics.PointF;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.support.v7.app.ActionBar;
-import android.support.v7.app.AppCompatActivity;
 import android.view.MenuItem;
+import androidx.appcompat.app.ActionBar;
+import androidx.appcompat.app.AppCompatActivity;
 import com.facebook.drawee.drawable.ScalingUtils;
 import com.facebook.drawee.view.DraweeTransition;
 import com.facebook.drawee.view.SimpleDraweeView;
 import com.facebook.fresco.samples.showcase.R;
 
-/**
- * Image details activity
- */
+/** Image details activity */
 public class ImageDetailsActivity extends AppCompatActivity {
 
   public static Intent getStartIntent(Context context, Uri imageUri) {
@@ -73,7 +71,7 @@ public class ImageDetailsActivity extends AppCompatActivity {
   @Override
   public boolean onOptionsItemSelected(MenuItem item) {
     switch (item.getItemId()) {
-      // Respond to the action bar's Up/Home button
+        // Respond to the action bar's Up/Home button
       case android.R.id.home:
         supportFinishAfterTransition();
         return true;

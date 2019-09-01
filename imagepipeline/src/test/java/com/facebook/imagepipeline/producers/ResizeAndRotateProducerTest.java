@@ -66,7 +66,7 @@ import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.Config;
 
 @RunWith(RobolectricTestRunner.class)
-@PowerMockIgnore({"org.mockito.*", "org.robolectric.*", "android.*"})
+@PowerMockIgnore({"org.mockito.*", "org.robolectric.*", "androidx.*", "android.*"})
 @Config(manifest = Config.NONE)
 @PrepareOnlyThisForTest({
   NativeJpegTranscoder.class,
@@ -81,14 +81,13 @@ public class ResizeAndRotateProducerTest {
 
   @Mock public Producer mInputProducer;
   @Mock public ImageRequest mImageRequest;
-  @Mock public ProducerListener mProducerListener;
+  @Mock public ProducerListener2 mProducerListener;
   @Mock public Consumer<EncodedImage> mConsumer;
   @Mock public ProducerContext mProducerContext;
   @Mock public PooledByteBufferFactory mPooledByteBufferFactory;
   @Mock public PooledByteBufferOutputStream mPooledByteBufferOutputStream;
 
-  @Rule
-  public PowerMockRule rule = new PowerMockRule();
+  @Rule public PowerMockRule rule = new PowerMockRule();
 
   private static final int MIN_TRANSFORM_INTERVAL_MS =
       ResizeAndRotateProducer.MIN_TRANSFORM_INTERVAL_MS;
@@ -115,22 +114,21 @@ public class ResizeAndRotateProducerTest {
     mFakeClockForWorker.incrementBy(1000);
     mFakeClockForScheduled.incrementBy(1000);
     PowerMockito.mockStatic(SystemClock.class);
-    when(SystemClock.uptimeMillis()).thenAnswer(
-        new Answer<Long>() {
-          @Override
-          public Long answer(InvocationOnMock invocation) throws Throwable {
-            return mFakeClockForWorker.now();
-          }
-        });
+    when(SystemClock.uptimeMillis())
+        .thenAnswer(
+            new Answer<Long>() {
+              @Override
+              public Long answer(InvocationOnMock invocation) throws Throwable {
+                return mFakeClockForWorker.now();
+              }
+            });
 
     when(mImageRequest.getSourceUri()).thenReturn(Uri.parse("http://testuri"));
     mTestExecutorService = new TestExecutorService(mFakeClockForWorker);
     mTestScheduledExecutorService = new TestScheduledExecutorService(mFakeClockForScheduled);
     mUiThreadImmediateExecutorService = mock(UiThreadImmediateExecutorService.class);
     when(mUiThreadImmediateExecutorService.schedule(
-        any(Runnable.class),
-        anyLong(),
-        any(TimeUnit.class)))
+            any(Runnable.class), anyLong(), any(TimeUnit.class)))
         .thenAnswer(
             new Answer<Object>() {
               @Override
@@ -144,29 +142,31 @@ public class ResizeAndRotateProducerTest {
 
     PowerMockito.mockStatic(NativeJpegTranscoder.class);
     PowerMockito.mockStatic(UiThreadImmediateExecutorService.class);
-    when(UiThreadImmediateExecutorService.getInstance()).thenReturn(
-        mUiThreadImmediateExecutorService);
+    when(UiThreadImmediateExecutorService.getInstance())
+        .thenReturn(mUiThreadImmediateExecutorService);
 
     mTestExecutorService = new TestExecutorService(mFakeClockForWorker);
 
     when(mProducerContext.getImageRequest()).thenReturn(mImageRequest);
-    when(mProducerContext.getListener()).thenReturn(mProducerListener);
-    when(mProducerListener.requiresExtraMap(anyString())).thenReturn(true);
+    when(mProducerContext.getProducerListener()).thenReturn(mProducerListener);
+    when(mProducerListener.requiresExtraMap(eq(mProducerContext), anyString())).thenReturn(true);
     mIntermediateResult = CloseableReference.of(mock(PooledByteBuffer.class));
     mFinalResult = CloseableReference.of(mock(PooledByteBuffer.class));
 
     mResizeAndRotateProducerConsumer = null;
     doAnswer(
-        new Answer() {
-          @Override
-          public Object answer(InvocationOnMock invocation) throws Throwable {
-            mResizeAndRotateProducerConsumer =
-                (Consumer<EncodedImage>) invocation.getArguments()[0];
-            return null;
-          }
-        }).when(mInputProducer).produceResults(any(Consumer.class), any(ProducerContext.class));
+            new Answer() {
+              @Override
+              public Object answer(InvocationOnMock invocation) throws Throwable {
+                mResizeAndRotateProducerConsumer =
+                    (Consumer<EncodedImage>) invocation.getArguments()[0];
+                return null;
+              }
+            })
+        .when(mInputProducer)
+        .produceResults(any(Consumer.class), any(ProducerContext.class));
     doReturn(mPooledByteBufferOutputStream).when(mPooledByteBufferFactory).newOutputStream();
-    mPooledByteBuffer = new TrivialPooledByteBuffer(new byte[]{1}, 0);
+    mPooledByteBuffer = new TrivialPooledByteBuffer(new byte[] {1}, 0);
     doReturn(mPooledByteBuffer).when(mPooledByteBufferOutputStream).toByteBuffer();
   }
 
@@ -746,24 +746,20 @@ public class ResizeAndRotateProducerTest {
     when(mImageRequest.getResizeOptions()).thenReturn(resizeOptions);
   }
 
-  private void whenRequestSpecificRotation(
-      @RotationOptions.RotationAngle int rotationAngle) {
+  private void whenRequestSpecificRotation(@RotationOptions.RotationAngle int rotationAngle) {
     when(mImageRequest.getRotationOptions())
         .thenReturn(RotationOptions.forceRotation(rotationAngle));
   }
 
   private void whenDisableRotation() {
-    when(mImageRequest.getRotationOptions())
-        .thenReturn(RotationOptions.disableRotation());
+    when(mImageRequest.getRotationOptions()).thenReturn(RotationOptions.disableRotation());
   }
 
   private void whenRequestsRotationFromMetadataWithDeferringAllowed() {
-    when(mImageRequest.getRotationOptions())
-        .thenReturn(RotationOptions.autoRotateAtRenderTime());
+    when(mImageRequest.getRotationOptions()).thenReturn(RotationOptions.autoRotateAtRenderTime());
   }
 
   private void whenRequestsRotationFromMetadataWithoutDeferring() {
-    when(mImageRequest.getRotationOptions())
-        .thenReturn(RotationOptions.autoRotate());
+    when(mImageRequest.getRotationOptions()).thenReturn(RotationOptions.autoRotate());
   }
 }

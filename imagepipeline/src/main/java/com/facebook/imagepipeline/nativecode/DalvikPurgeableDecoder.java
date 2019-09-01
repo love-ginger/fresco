@@ -7,8 +7,10 @@
 
 package com.facebook.imagepipeline.nativecode;
 
+import android.annotation.TargetApi;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.ColorSpace;
 import android.graphics.Rect;
 import android.os.Build;
 import com.facebook.common.internal.DoNotStrip;
@@ -24,6 +26,7 @@ import com.facebook.imagepipeline.memory.BitmapCounterProvider;
 import com.facebook.imagepipeline.platform.PlatformDecoder;
 import com.facebook.imageutils.BitmapUtil;
 import com.facebook.imageutils.JfifUtil;
+import com.facebook.soloader.DoNotOptimize;
 import java.util.Locale;
 import javax.annotation.Nullable;
 
@@ -39,8 +42,8 @@ public abstract class DalvikPurgeableDecoder implements PlatformDecoder {
     ImagePipelineNativeLoader.load();
   }
 
-  protected static final byte[] EOI = new byte[] {
-      (byte) JfifUtil.MARKER_FIRST_BYTE, (byte) JfifUtil.MARKER_EOI };
+  protected static final byte[] EOI =
+      new byte[] {(byte) JfifUtil.MARKER_FIRST_BYTE, (byte) JfifUtil.MARKER_EOI};
 
   private final BitmapCounter mUnpooledBitmapsCounter;
 
@@ -51,7 +54,7 @@ public abstract class DalvikPurgeableDecoder implements PlatformDecoder {
   @Override
   public CloseableReference<Bitmap> decodeFromEncodedImage(
       EncodedImage encodedImage, Bitmap.Config bitmapConfig, @Nullable Rect regionToDecode) {
-    return decodeFromEncodedImageWithColorSpace(encodedImage, bitmapConfig, regionToDecode, false);
+    return decodeFromEncodedImageWithColorSpace(encodedImage, bitmapConfig, regionToDecode, null);
   }
 
   @Override
@@ -61,7 +64,7 @@ public abstract class DalvikPurgeableDecoder implements PlatformDecoder {
       @Nullable Rect regionToDecode,
       int length) {
     return decodeJPEGFromEncodedImageWithColorSpace(
-        encodedImage, bitmapConfig, regionToDecode, length, false);
+        encodedImage, bitmapConfig, regionToDecode, length, null);
   }
 
   /**
@@ -71,7 +74,9 @@ public abstract class DalvikPurgeableDecoder implements PlatformDecoder {
    * @param bitmapConfig the {@link android.graphics.Bitmap.Config} used to create the decoded
    *     Bitmap
    * @param regionToDecode optional image region to decode. currently not supported.
-   * @param transformToSRGB whether to allow color space transformation to sRGB at load time
+   * @param colorSpace the target color space of the decoded bitmap, must be one of the named color
+   *     space in {@link android.graphics.ColorSpace.Named}. If null, then SRGB color space is
+   *     assumed if the SDK version >= 26.
    * @return the bitmap
    * @throws TooManyBitmapsException if the pool is full
    * @throws java.lang.OutOfMemoryError if the Bitmap cannot be allocated
@@ -81,10 +86,12 @@ public abstract class DalvikPurgeableDecoder implements PlatformDecoder {
       final EncodedImage encodedImage,
       Bitmap.Config bitmapConfig,
       @Nullable Rect regionToDecode,
-      final boolean transformToSRGB) {
-    BitmapFactory.Options options = getBitmapFactoryOptions(
-        encodedImage.getSampleSize(),
-        bitmapConfig);
+      @Nullable final ColorSpace colorSpace) {
+    BitmapFactory.Options options =
+        getBitmapFactoryOptions(encodedImage.getSampleSize(), bitmapConfig);
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      OreoUtils.setColorSpace(options, colorSpace);
+    }
     CloseableReference<PooledByteBuffer> bytesRef = encodedImage.getByteBufferRef();
     Preconditions.checkNotNull(bytesRef);
     try {
@@ -103,7 +110,9 @@ public abstract class DalvikPurgeableDecoder implements PlatformDecoder {
    *     Bitmap
    * @param regionToDecode optional image region to decode. currently not supported.
    * @param length the number of encoded bytes in the buffer
-   * @param transformToSRGB whether to allow color space transformation to sRGB at load time
+   * @param colorSpace the target color space of the decoded bitmap, must be one of the named color
+   *     space in {@link android.graphics.ColorSpace.Named}. If null, then SRGB color space is
+   *     assumed if the SDK version >= 26.
    * @return the bitmap
    * @throws TooManyBitmapsException if the pool is full
    * @throws java.lang.OutOfMemoryError if the Bitmap cannot be allocated
@@ -114,10 +123,12 @@ public abstract class DalvikPurgeableDecoder implements PlatformDecoder {
       Bitmap.Config bitmapConfig,
       @Nullable Rect regionToDecode,
       int length,
-      final boolean transformToSRGB) {
-    BitmapFactory.Options options = getBitmapFactoryOptions(
-        encodedImage.getSampleSize(),
-        bitmapConfig);
+      @Nullable final ColorSpace colorSpace) {
+    BitmapFactory.Options options =
+        getBitmapFactoryOptions(encodedImage.getSampleSize(), bitmapConfig);
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      OreoUtils.setColorSpace(options, colorSpace);
+    }
     final CloseableReference<PooledByteBuffer> bytesRef = encodedImage.getByteBufferRef();
     Preconditions.checkNotNull(bytesRef);
     try {
@@ -164,7 +175,7 @@ public abstract class DalvikPurgeableDecoder implements PlatformDecoder {
     // Sample size should ONLY be different than 1 when downsampling is enabled in the pipeline
     options.inSampleSize = sampleSize;
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
-      options.inMutable = true;  // no known perf difference; allows postprocessing to work
+      options.inMutable = true; // no known perf difference; allows postprocessing to work
     }
     return options;
   }
@@ -172,9 +183,18 @@ public abstract class DalvikPurgeableDecoder implements PlatformDecoder {
   @VisibleForTesting
   public static boolean endsWithEOI(CloseableReference<PooledByteBuffer> bytesRef, int length) {
     PooledByteBuffer buffer = bytesRef.get();
-    return length >= 2 &&
-        buffer.read(length - 2) == (byte) JfifUtil.MARKER_FIRST_BYTE &&
-        buffer.read(length - 1) == (byte) JfifUtil.MARKER_EOI;
+    return length >= 2
+        && buffer.read(length - 2) == (byte) JfifUtil.MARKER_FIRST_BYTE
+        && buffer.read(length - 1) == (byte) JfifUtil.MARKER_EOI;
+  }
+
+  @DoNotOptimize
+  private static class OreoUtils {
+    @TargetApi(Build.VERSION_CODES.O)
+    static void setColorSpace(BitmapFactory.Options options, @Nullable ColorSpace colorSpace) {
+      options.inPreferredColorSpace =
+          colorSpace == null ? ColorSpace.get(ColorSpace.Named.SRGB) : colorSpace;
+    }
   }
 
   /**
@@ -197,16 +217,17 @@ public abstract class DalvikPurgeableDecoder implements PlatformDecoder {
     if (!mUnpooledBitmapsCounter.increase(bitmap)) {
       int bitmapSize = BitmapUtil.getSizeInBytes(bitmap);
       bitmap.recycle();
-      String detailMessage = String.format(
-          Locale.US,
-          "Attempted to pin a bitmap of size %d bytes."
-              + " The current pool count is %d, the current pool size is %d bytes."
-              + " The current pool max count is %d, the current pool max size is %d bytes.",
-          bitmapSize,
-          mUnpooledBitmapsCounter.getCount(),
-          mUnpooledBitmapsCounter.getSize(),
-          mUnpooledBitmapsCounter.getMaxCount(),
-          mUnpooledBitmapsCounter.getMaxSize());
+      String detailMessage =
+          String.format(
+              Locale.US,
+              "Attempted to pin a bitmap of size %d bytes."
+                  + " The current pool count is %d, the current pool size is %d bytes."
+                  + " The current pool max count is %d, the current pool max size is %d bytes.",
+              bitmapSize,
+              mUnpooledBitmapsCounter.getCount(),
+              mUnpooledBitmapsCounter.getSize(),
+              mUnpooledBitmapsCounter.getMaxCount(),
+              mUnpooledBitmapsCounter.getMaxSize());
       throw new TooManyBitmapsException(detailMessage);
     }
     return CloseableReference.of(bitmap, mUnpooledBitmapsCounter.getReleaser());

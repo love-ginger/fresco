@@ -20,25 +20,52 @@ import javax.annotation.concurrent.GuardedBy;
 public class BaseProducerContext implements ProducerContext {
   private final ImageRequest mImageRequest;
   private final String mId;
-  private final ProducerListener mProducerListener;
+  private final @Nullable String mUiComponentId;
+  private final ProducerListener2 mProducerListener;
   private final Object mCallerContext;
   private final ImageRequest.RequestLevel mLowestPermittedRequestLevel;
 
   @GuardedBy("this")
   private boolean mIsPrefetch;
+
   @GuardedBy("this")
   private Priority mPriority;
+
   @GuardedBy("this")
   private boolean mIsIntermediateResultExpected;
+
   @GuardedBy("this")
   private boolean mIsCancelled;
+
   @GuardedBy("this")
   private final List<ProducerContextCallbacks> mCallbacks;
 
   public BaseProducerContext(
       ImageRequest imageRequest,
       String id,
-      ProducerListener producerListener,
+      ProducerListener2 producerListener,
+      Object callerContext,
+      ImageRequest.RequestLevel lowestPermittedRequestLevel,
+      boolean isPrefetch,
+      boolean isIntermediateResultExpected,
+      Priority priority) {
+    this(
+        imageRequest,
+        id,
+        null,
+        producerListener,
+        callerContext,
+        lowestPermittedRequestLevel,
+        isPrefetch,
+        isIntermediateResultExpected,
+        priority);
+  }
+
+  public BaseProducerContext(
+      ImageRequest imageRequest,
+      String id,
+      @Nullable String uiComponentId,
+      ProducerListener2 producerListener,
       Object callerContext,
       ImageRequest.RequestLevel lowestPermittedRequestLevel,
       boolean isPrefetch,
@@ -46,6 +73,7 @@ public class BaseProducerContext implements ProducerContext {
       Priority priority) {
     mImageRequest = imageRequest;
     mId = id;
+    mUiComponentId = uiComponentId;
     mProducerListener = producerListener;
     mCallerContext = callerContext;
     mLowestPermittedRequestLevel = lowestPermittedRequestLevel;
@@ -68,8 +96,13 @@ public class BaseProducerContext implements ProducerContext {
     return mId;
   }
 
+  @Nullable
+  public String getUiComponentId() {
+    return mUiComponentId;
+  }
+
   @Override
-  public ProducerListener getListener() {
+  public ProducerListener2 getProducerListener() {
     return mProducerListener;
   }
 
@@ -117,9 +150,7 @@ public class BaseProducerContext implements ProducerContext {
     }
   }
 
-  /**
-   * Cancels the request processing and calls appropriate callbacks.
-   */
+  /** Cancels the request processing and calls appropriate callbacks. */
   public void cancel() {
     BaseProducerContext.callOnCancellationRequested(cancelNoCallbacks());
   }
@@ -127,9 +158,9 @@ public class BaseProducerContext implements ProducerContext {
   /**
    * Changes isPrefetch property.
    *
-   * <p> This method does not call any callbacks. Instead, caller of this method is responsible for
-   * iterating over returned list and calling appropriate method on each callback object.
-   * {@see #callOnIsPrefetchChanged}
+   * <p>This method does not call any callbacks. Instead, caller of this method is responsible for
+   * iterating over returned list and calling appropriate method on each callback object. {@see
+   * #callOnIsPrefetchChanged}
    *
    * @return list of callbacks if the value actually changes, null otherwise
    */
@@ -145,9 +176,9 @@ public class BaseProducerContext implements ProducerContext {
   /**
    * Changes priority.
    *
-   * <p> This method does not call any callbacks. Instead, caller of this method is responsible for
-   * iterating over returned list and calling appropriate method on each callback object.
-   * {@see #callOnPriorityChanged}
+   * <p>This method does not call any callbacks. Instead, caller of this method is responsible for
+   * iterating over returned list and calling appropriate method on each callback object. {@see
+   * #callOnPriorityChanged}
    *
    * @return list of callbacks if the value actually changes, null otherwise
    */
@@ -163,9 +194,9 @@ public class BaseProducerContext implements ProducerContext {
   /**
    * Changes isIntermediateResultExpected property.
    *
-   * <p> This method does not call any callbacks. Instead, caller of this method is responsible for
-   * iterating over returned list and calling appropriate method on each callback object.
-   * {@see #callOnIntermediateResultChanged}
+   * <p>This method does not call any callbacks. Instead, caller of this method is responsible for
+   * iterating over returned list and calling appropriate method on each callback object. {@see
+   * #callOnIntermediateResultChanged}
    *
    * @return list of callbacks if the value actually changes, null otherwise
    */
@@ -182,9 +213,9 @@ public class BaseProducerContext implements ProducerContext {
   /**
    * Marks this ProducerContext as cancelled.
    *
-   * <p> This method does not call any callbacks. Instead, caller of this method is responsible for
-   * iterating over returned list and calling appropriate method on each callback object.
-   * {@see #callOnCancellationRequested}
+   * <p>This method does not call any callbacks. Instead, caller of this method is responsible for
+   * iterating over returned list and calling appropriate method on each callback object. {@see
+   * #callOnCancellationRequested}
    *
    * @return list of callbacks if the value actually changes, null otherwise
    */
@@ -210,11 +241,8 @@ public class BaseProducerContext implements ProducerContext {
     }
   }
 
-  /**
-   * Calls {@code onIsPrefetchChanged} on each element of the list. Does nothing if list == null
-   */
-  public static void callOnIsPrefetchChanged(
-      @Nullable List<ProducerContextCallbacks> callbacks) {
+  /** Calls {@code onIsPrefetchChanged} on each element of the list. Does nothing if list == null */
+  public static void callOnIsPrefetchChanged(@Nullable List<ProducerContextCallbacks> callbacks) {
     if (callbacks == null) {
       return;
     }
@@ -224,8 +252,8 @@ public class BaseProducerContext implements ProducerContext {
   }
 
   /**
-   * Calls {@code onIsIntermediateResultExpected} on each element of the list. Does nothing if
-   * list == null
+   * Calls {@code onIsIntermediateResultExpected} on each element of the list. Does nothing if list
+   * == null
    */
   public static void callOnIsIntermediateResultExpectedChanged(
       @Nullable List<ProducerContextCallbacks> callbacks) {
@@ -237,9 +265,7 @@ public class BaseProducerContext implements ProducerContext {
     }
   }
 
-  /**
-   * Calls {@code onPriorityChanged} on each element of the list. Does nothing if list == null
-   */
+  /** Calls {@code onPriorityChanged} on each element of the list. Does nothing if list == null */
   public static void callOnPriorityChanged(@Nullable List<ProducerContextCallbacks> callbacks) {
     if (callbacks == null) {
       return;

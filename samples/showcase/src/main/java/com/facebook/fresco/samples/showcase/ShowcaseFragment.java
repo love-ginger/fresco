@@ -11,22 +11,15 @@
  */
 package com.facebook.fresco.samples.showcase;
 
-import android.support.annotation.Nullable;
+import androidx.annotation.Nullable;
 
-/**
- * This is the abstraction for each Fragment we display into the showcase application
- */
-
+/** This is the abstraction for each Fragment we display into the showcase application */
 public interface ShowcaseFragment {
 
-  /**
-   * @return If any the tag to use when this is into a backstack
-   */
+  /** @return If any the tag to use when this is into a backstack */
   @Nullable
   String getBackstackTag();
 
-  /**
-   * @return The resourceId for the title
-   */
+  /** @return The resourceId for the title */
   int getTitleId();
 }

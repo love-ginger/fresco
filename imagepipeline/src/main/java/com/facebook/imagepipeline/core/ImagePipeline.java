@@ -11,6 +11,7 @@ import android.net.Uri;
 import bolts.Continuation;
 import bolts.Task;
 import com.facebook.cache.common.CacheKey;
+import com.facebook.callercontext.CallerContextVerifier;
 import com.facebook.common.internal.Objects;
 import com.facebook.common.internal.Preconditions;
 import com.facebook.common.internal.Predicate;
@@ -29,7 +30,10 @@ import com.facebook.imagepipeline.datasource.CloseableProducerToDataSourceAdapte
 import com.facebook.imagepipeline.datasource.ProducerToDataSourceAdapter;
 import com.facebook.imagepipeline.image.CloseableImage;
 import com.facebook.imagepipeline.listener.ForwardingRequestListener;
+import com.facebook.imagepipeline.listener.ForwardingRequestListener2;
 import com.facebook.imagepipeline.listener.RequestListener;
+import com.facebook.imagepipeline.listener.RequestListener2;
+import com.facebook.imagepipeline.producers.InternalRequestListener;
 import com.facebook.imagepipeline.producers.Producer;
 import com.facebook.imagepipeline.producers.SettableProducerContext;
 import com.facebook.imagepipeline.producers.ThreadHandoffProducerQueue;
@@ -42,9 +46,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
-/**
- * The entry point for the image pipeline.
- */
+/** The entry point for the image pipeline. */
 @ThreadSafe
 public class ImagePipeline {
 
@@ -53,6 +55,7 @@ public class ImagePipeline {
 
   private final ProducerSequenceFactory mProducerSequenceFactory;
   private final RequestListener mRequestListener;
+  private final RequestListener2 mRequestListener2;
   private final Supplier<Boolean> mIsPrefetchEnabledSupplier;
   private final MemoryCache<CacheKey, CloseableImage> mBitmapMemoryCache;
   private final MemoryCache<CacheKey, PooledByteBuffer> mEncodedMemoryCache;
@@ -63,10 +66,12 @@ public class ImagePipeline {
   private final Supplier<Boolean> mSuppressBitmapPrefetchingSupplier;
   private AtomicLong mIdCounter;
   private final Supplier<Boolean> mLazyDataSource;
+  private final @Nullable CallerContextVerifier mCallerContextVerifier;
 
   public ImagePipeline(
       ProducerSequenceFactory producerSequenceFactory,
       Set<RequestListener> requestListeners,
+      Set<RequestListener2> requestListener2s,
       Supplier<Boolean> isPrefetchEnabledSupplier,
       MemoryCache<CacheKey, CloseableImage> bitmapMemoryCache,
       MemoryCache<CacheKey, PooledByteBuffer> encodedMemoryCache,
@@ -75,10 +80,12 @@ public class ImagePipeline {
       CacheKeyFactory cacheKeyFactory,
       ThreadHandoffProducerQueue threadHandoffProducerQueue,
       Supplier<Boolean> suppressBitmapPrefetchingSupplier,
-      Supplier<Boolean> lazyDataSource) {
+      Supplier<Boolean> lazyDataSource,
+      @Nullable CallerContextVerifier callerContextVerifier) {
     mIdCounter = new AtomicLong();
     mProducerSequenceFactory = producerSequenceFactory;
     mRequestListener = new ForwardingRequestListener(requestListeners);
+    mRequestListener2 = new ForwardingRequestListener2(requestListener2s);
     mIsPrefetchEnabledSupplier = isPrefetchEnabledSupplier;
     mBitmapMemoryCache = bitmapMemoryCache;
     mEncodedMemoryCache = encodedMemoryCache;
@@ -88,6 +95,7 @@ public class ImagePipeline {
     mThreadHandoffProducerQueue = threadHandoffProducerQueue;
     mSuppressBitmapPrefetchingSupplier = suppressBitmapPrefetchingSupplier;
     mLazyDataSource = lazyDataSource;
+    mCallerContextVerifier = callerContextVerifier;
   }
 
   /**
@@ -120,9 +128,7 @@ public class ImagePipeline {
 
       @Override
       public String toString() {
-        return Objects.toStringHelper(this)
-            .add("uri", imageRequest.getSourceUri())
-            .toString();
+        return Objects.toStringHelper(this).add("uri", imageRequest.getSourceUri()).toString();
       }
     };
   }
@@ -160,12 +166,42 @@ public class ImagePipeline {
    * DataSource representing the pending results of the task.
    *
    * @param imageRequest the request to submit (what to execute).
+   * @param callerContext the caller context of the caller of data source supplier
+   * @param requestLevel which level to look down until for the image
+   * @param requestListener additional image request listener independent of ImageRequest listeners
+   * @param uiComponentId optional UI component ID requesting the image
+   * @return a DataSource representing pending results and completion of the request
+   */
+  public Supplier<DataSource<CloseableReference<CloseableImage>>> getDataSourceSupplier(
+      final ImageRequest imageRequest,
+      final Object callerContext,
+      final ImageRequest.RequestLevel requestLevel,
+      final @Nullable RequestListener requestListener,
+      final @Nullable String uiComponentId) {
+    return new Supplier<DataSource<CloseableReference<CloseableImage>>>() {
+      @Override
+      public DataSource<CloseableReference<CloseableImage>> get() {
+        return fetchDecodedImage(
+            imageRequest, callerContext, requestLevel, requestListener, uiComponentId);
+      }
+
+      @Override
+      public String toString() {
+        return Objects.toStringHelper(this).add("uri", imageRequest.getSourceUri()).toString();
+      }
+    };
+  }
+
+  /**
+   * Returns a DataSource supplier that will on get submit the request for execution and return a
+   * DataSource representing the pending results of the task.
+   *
+   * @param imageRequest the request to submit (what to execute).
    * @return a DataSource representing pending results and completion of the request
    */
   public Supplier<DataSource<CloseableReference<PooledByteBuffer>>>
-  getEncodedImageDataSourceSupplier(
-      final ImageRequest imageRequest,
-      final Object callerContext) {
+      getEncodedImageDataSourceSupplier(
+          final ImageRequest imageRequest, final Object callerContext) {
     return new Supplier<DataSource<CloseableReference<PooledByteBuffer>>>() {
       @Override
       public DataSource<CloseableReference<PooledByteBuffer>> get() {
@@ -174,9 +210,7 @@ public class ImagePipeline {
 
       @Override
       public String toString() {
-        return Objects.toStringHelper(this)
-            .add("uri", imageRequest.getSourceUri())
-            .toString();
+        return Objects.toStringHelper(this).add("uri", imageRequest.getSourceUri()).toString();
       }
     };
   }
@@ -189,17 +223,15 @@ public class ImagePipeline {
    * @return a DataSource representing the image
    */
   public DataSource<CloseableReference<CloseableImage>> fetchImageFromBitmapCache(
-      ImageRequest imageRequest,
-      Object callerContext) {
+      ImageRequest imageRequest, Object callerContext) {
     return fetchDecodedImage(
-        imageRequest,
-        callerContext,
-        ImageRequest.RequestLevel.BITMAP_MEMORY_CACHE);
+        imageRequest, callerContext, ImageRequest.RequestLevel.BITMAP_MEMORY_CACHE);
   }
 
   /**
    * Submits a request for execution and returns a DataSource representing the pending decoded
    * image(s).
+   *
    * <p>The returned DataSource must be closed once the client has finished with it.
    *
    * @param imageRequest the request to submit
@@ -207,8 +239,7 @@ public class ImagePipeline {
    * @return a DataSource representing the pending decoded image(s)
    */
   public DataSource<CloseableReference<CloseableImage>> fetchDecodedImage(
-      ImageRequest imageRequest,
-      Object callerContext) {
+      ImageRequest imageRequest, Object callerContext) {
     return fetchDecodedImage(imageRequest, callerContext, ImageRequest.RequestLevel.FULL_FETCH);
   }
 
@@ -232,6 +263,7 @@ public class ImagePipeline {
   /**
    * Submits a request for execution and returns a DataSource representing the pending decoded
    * image(s).
+   *
    * <p>The returned DataSource must be closed once the client has finished with it.
    *
    * @param imageRequest the request to submit
@@ -264,6 +296,29 @@ public class ImagePipeline {
       Object callerContext,
       ImageRequest.RequestLevel lowestPermittedRequestLevelOnSubmit,
       @Nullable RequestListener requestListener) {
+    return fetchDecodedImage(
+        imageRequest, callerContext, lowestPermittedRequestLevelOnSubmit, requestListener, null);
+  }
+
+  /**
+   * Submits a request for execution and returns a DataSource representing the pending decoded
+   * image(s).
+   *
+   * <p>The returned DataSource must be closed once the client has finished with it.
+   *
+   * @param imageRequest the request to submit
+   * @param callerContext the caller context for image request
+   * @param lowestPermittedRequestLevelOnSubmit the lowest request level permitted for image reques
+   * @param requestListener additional image request listener independent of ImageRequest listeners
+   * @param uiComponentId optional UI component ID that is requesting the image
+   * @return a DataSource representing the pending decoded image(s)
+   */
+  public DataSource<CloseableReference<CloseableImage>> fetchDecodedImage(
+      ImageRequest imageRequest,
+      Object callerContext,
+      ImageRequest.RequestLevel lowestPermittedRequestLevelOnSubmit,
+      @Nullable RequestListener requestListener,
+      @Nullable String uiComponentId) {
     try {
       Producer<CloseableReference<CloseableImage>> producerSequence =
           mProducerSequenceFactory.getDecodedImageProducerSequence(imageRequest);
@@ -272,7 +327,8 @@ public class ImagePipeline {
           imageRequest,
           lowestPermittedRequestLevelOnSubmit,
           callerContext,
-          requestListener);
+          requestListener,
+          uiComponentId);
     } catch (Exception exception) {
       return DataSources.immediateFailedDataSource(exception);
     }
@@ -282,7 +338,7 @@ public class ImagePipeline {
    * Submits a request for execution and returns a DataSource representing the pending encoded
    * image(s).
    *
-   * <p> The ResizeOptions in the imageRequest will be ignored for this fetch
+   * <p>The ResizeOptions in the imageRequest will be ignored for this fetch
    *
    * <p>The returned DataSource must be closed once the client has finished with it.
    *
@@ -290,8 +346,7 @@ public class ImagePipeline {
    * @return a DataSource representing the pending encoded image(s)
    */
   public DataSource<CloseableReference<PooledByteBuffer>> fetchEncodedImage(
-      ImageRequest imageRequest,
-      Object callerContext) {
+      ImageRequest imageRequest, Object callerContext) {
     return fetchEncodedImage(imageRequest, callerContext, null);
   }
 
@@ -319,16 +374,15 @@ public class ImagePipeline {
       // resize options are ignored to avoid treating the image as if it was to be downsampled
       // during decode.
       if (imageRequest.getResizeOptions() != null) {
-        imageRequest = ImageRequestBuilder.fromRequest(imageRequest)
-            .setResizeOptions(null)
-            .build();
+        imageRequest = ImageRequestBuilder.fromRequest(imageRequest).setResizeOptions(null).build();
       }
       return submitFetchRequest(
           producerSequence,
           imageRequest,
           ImageRequest.RequestLevel.FULL_FETCH,
           callerContext,
-          requestListener);
+          requestListener,
+          null);
     } catch (Exception exception) {
       return DataSources.immediateFailedDataSource(exception);
     }
@@ -337,15 +391,25 @@ public class ImagePipeline {
   /**
    * Submits a request for prefetching to the bitmap cache.
    *
-   * <p> Beware that if your network fetcher doesn't support priorities prefetch requests may slow
+   * <p>Beware that if your network fetcher doesn't support priorities prefetch requests may slow
    * down images which are immediately required on screen.
    *
    * @param imageRequest the request to submit
    * @return a DataSource that can safely be ignored.
    */
-  public DataSource<Void> prefetchToBitmapCache(
-      ImageRequest imageRequest,
-      Object callerContext) {
+  public DataSource<Void> prefetchToBitmapCache(ImageRequest imageRequest, Object callerContext) {
+    return prefetchToBitmapCache(imageRequest, callerContext, Priority.MEDIUM);
+  }
+
+  /** Experimental prefetch method. Do not use as it can be removed in the future */
+  @Deprecated
+  public DataSource<Void> prefetchToBitmapCacheWithHighPriority(
+      ImageRequest imageRequest, Object callerContext) {
+    return prefetchToBitmapCache(imageRequest, callerContext, Priority.HIGH);
+  }
+
+  private DataSource<Void> prefetchToBitmapCache(
+      ImageRequest imageRequest, Object callerContext, Priority priority) {
     if (!mIsPrefetchEnabledSupplier.get()) {
       return DataSources.immediateFailedDataSource(PREFETCH_EXCEPTION);
     }
@@ -365,7 +429,7 @@ public class ImagePipeline {
           imageRequest,
           ImageRequest.RequestLevel.FULL_FETCH,
           callerContext,
-          Priority.MEDIUM);
+          priority);
     } catch (Exception exception) {
       return DataSources.immediateFailedDataSource(exception);
     }
@@ -374,22 +438,20 @@ public class ImagePipeline {
   /**
    * Submits a request for prefetching to the disk cache with a default priority.
    *
-   * <p> Beware that if your network fetcher doesn't support priorities prefetch requests may slow
+   * <p>Beware that if your network fetcher doesn't support priorities prefetch requests may slow
    * down images which are immediately required on screen.
    *
    * @param imageRequest the request to submit
    * @return a DataSource that can safely be ignored.
    */
-  public DataSource<Void> prefetchToDiskCache(
-      ImageRequest imageRequest,
-      Object callerContext) {
+  public DataSource<Void> prefetchToDiskCache(ImageRequest imageRequest, Object callerContext) {
     return prefetchToDiskCache(imageRequest, callerContext, Priority.MEDIUM);
   }
 
   /**
    * Submits a request for prefetching to the disk cache.
    *
-   * <p> Beware that if your network fetcher doesn't support priorities prefetch requests may slow
+   * <p>Beware that if your network fetcher doesn't support priorities prefetch requests may slow
    * down images which are immediately required on screen.
    *
    * @param imageRequest the request to submit
@@ -397,9 +459,49 @@ public class ImagePipeline {
    * @return a DataSource that can safely be ignored.
    */
   public DataSource<Void> prefetchToDiskCache(
-      ImageRequest imageRequest,
-      Object callerContext,
-      Priority priority) {
+      ImageRequest imageRequest, Object callerContext, Priority priority) {
+    if (!mIsPrefetchEnabledSupplier.get()) {
+      return DataSources.immediateFailedDataSource(PREFETCH_EXCEPTION);
+    }
+    try {
+      Producer<Void> producerSequence =
+          mProducerSequenceFactory.getEncodedImagePrefetchProducerSequence(imageRequest);
+      return submitPrefetchRequest(
+          producerSequence,
+          imageRequest,
+          ImageRequest.RequestLevel.FULL_FETCH,
+          callerContext,
+          priority);
+    } catch (Exception exception) {
+      return DataSources.immediateFailedDataSource(exception);
+    }
+  }
+
+  /**
+   * Submits a request for prefetching to the encoded cache with a default priority.
+   *
+   * <p>Beware that if your network fetcher doesn't support priorities prefetch requests may slow
+   * down images which are immediately required on screen.
+   *
+   * @param imageRequest the request to submit
+   * @return a DataSource that can safely be ignored.
+   */
+  public DataSource<Void> prefetchToEncodedCache(ImageRequest imageRequest, Object callerContext) {
+    return prefetchToEncodedCache(imageRequest, callerContext, Priority.MEDIUM);
+  }
+
+  /**
+   * Submits a request for prefetching to the encoded cache.
+   *
+   * <p>Beware that if your network fetcher doesn't support priorities prefetch requests may slow
+   * down images which are immediately required on screen.
+   *
+   * @param imageRequest the request to submit
+   * @param priority custom priority for the fetch
+   * @return a DataSource that can safely be ignored.
+   */
+  public DataSource<Void> prefetchToEncodedCache(
+      ImageRequest imageRequest, Object callerContext, Priority priority) {
     if (!mIsPrefetchEnabledSupplier.get()) {
       return DataSources.immediateFailedDataSource(PREFETCH_EXCEPTION);
     }
@@ -429,9 +531,9 @@ public class ImagePipeline {
   }
 
   /**
-   * <p>If you have supplied your own cache key factory when configuring the pipeline, this method
-   * may not work correctly. It will only work if the custom factory builds the cache key entirely
-   * from the URI. If that is not the case, use {@link #evictFromDiskCache(ImageRequest)}.
+   * If you have supplied your own cache key factory when configuring the pipeline, this method may
+   * not work correctly. It will only work if the custom factory builds the cache key entirely from
+   * the URI. If that is not the case, use {@link #evictFromDiskCache(ImageRequest)}.
    *
    * @param uri The uri of the image to evict
    */
@@ -451,10 +553,10 @@ public class ImagePipeline {
   }
 
   /**
-   * <p>If you have supplied your own cache key factory when configuring the pipeline, this method
-   * may not work correctly. It will only work if the custom factory builds the cache key entirely
-   * from the URI. If that is not the case, use {@link #evictFromMemoryCache(Uri)} and
-   * {@link #evictFromDiskCache(ImageRequest)} separately.
+   * If you have supplied your own cache key factory when configuring the pipeline, this method may
+   * not work correctly. It will only work if the custom factory builds the cache key entirely from
+   * the URI. If that is not the case, use {@link #evictFromMemoryCache(Uri)} and {@link
+   * #evictFromDiskCache(ImageRequest)} separately.
    *
    * @param uri The uri of the image to evict
    */
@@ -463,9 +565,7 @@ public class ImagePipeline {
     evictFromDiskCache(uri);
   }
 
-  /**
-   * Clear the memory caches
-   */
+  /** Clear the memory caches */
   public void clearMemoryCaches() {
     Predicate<CacheKey> allPredicate =
         new Predicate<CacheKey>() {
@@ -478,17 +578,22 @@ public class ImagePipeline {
     mEncodedMemoryCache.removeAll(allPredicate);
   }
 
-  /**
-   * Clear disk caches
-   */
+  /** Clear disk caches */
   public void clearDiskCaches() {
     mMainBufferedDiskCache.clearAll();
     mSmallImageBufferedDiskCache.clearAll();
   }
 
   /**
-   * Clear all the caches (memory and disk)
+   * Current disk caches size
+   *
+   * @return size in Bytes
    */
+  public long getUsedDiskCacheSize() {
+    return mMainBufferedDiskCache.getSize() + mSmallImageBufferedDiskCache.getSize();
+  }
+
+  /** Clear all the caches (memory and disk) */
   public void clearCaches() {
     clearMemoryCaches();
     clearDiskCaches();
@@ -508,9 +613,7 @@ public class ImagePipeline {
     return mBitmapMemoryCache.contains(bitmapCachePredicate);
   }
 
-  /**
-   * @return The Bitmap MemoryCache
-   */
+  /** @return The Bitmap MemoryCache */
   public MemoryCache<CacheKey, CloseableImage> getBitmapMemoryCache() {
     return mBitmapMemoryCache;
   }
@@ -535,41 +638,39 @@ public class ImagePipeline {
   }
 
   /**
-   * Returns whether the image is stored in the disk cache.
-   * Performs disk cache check synchronously. It is not recommended to use this
-   * unless you know what exactly you are doing. Disk cache check is a costly operation,
-   * the call will block the caller thread until the cache check is completed.
+   * Returns whether the image is stored in the disk cache. Performs disk cache check synchronously.
+   * It is not recommended to use this unless you know what exactly you are doing. Disk cache check
+   * is a costly operation, the call will block the caller thread until the cache check is
+   * completed.
    *
    * @param uri the uri for the image to be looked up.
    * @return true if the image was found in the disk cache, false otherwise.
    */
   public boolean isInDiskCacheSync(final Uri uri) {
-    return isInDiskCacheSync(uri, ImageRequest.CacheChoice.SMALL) ||
-        isInDiskCacheSync(uri, ImageRequest.CacheChoice.DEFAULT);
+    return isInDiskCacheSync(uri, ImageRequest.CacheChoice.SMALL)
+        || isInDiskCacheSync(uri, ImageRequest.CacheChoice.DEFAULT);
   }
 
   /**
-   * Returns whether the image is stored in the disk cache.
-   * Performs disk cache check synchronously. It is not recommended to use this
-   * unless you know what exactly you are doing. Disk cache check is a costly operation,
-   * the call will block the caller thread until the cache check is completed.
+   * Returns whether the image is stored in the disk cache. Performs disk cache check synchronously.
+   * It is not recommended to use this unless you know what exactly you are doing. Disk cache check
+   * is a costly operation, the call will block the caller thread until the cache check is
+   * completed.
    *
    * @param uri the uri for the image to be looked up.
    * @param cacheChoice the cacheChoice for the cache to be looked up.
    * @return true if the image was found in the disk cache, false otherwise.
    */
   public boolean isInDiskCacheSync(final Uri uri, final ImageRequest.CacheChoice cacheChoice) {
-    ImageRequest imageRequest = ImageRequestBuilder
-        .newBuilderWithSource(uri)
-        .setCacheChoice(cacheChoice)
-        .build();
+    ImageRequest imageRequest =
+        ImageRequestBuilder.newBuilderWithSource(uri).setCacheChoice(cacheChoice).build();
     return isInDiskCacheSync(imageRequest);
   }
 
   /**
-   * Performs disk cache check synchronously. It is not recommended to use this
-   * unless you know what exactly you are doing. Disk cache check is a costly operation,
-   * the call will block the caller thread until the cache check is completed.
+   * Performs disk cache check synchronously. It is not recommended to use this unless you know what
+   * exactly you are doing. Disk cache check is a costly operation, the call will block the caller
+   * thread until the cache check is completed.
    *
    * @param imageRequest the imageRequest for the image to be looked up.
    * @return true if the image was found in the disk cache, false otherwise.
@@ -611,7 +712,8 @@ public class ImagePipeline {
   public DataSource<Boolean> isInDiskCache(final ImageRequest imageRequest) {
     final CacheKey cacheKey = mCacheKeyFactory.getEncodedCacheKey(imageRequest, null);
     final SimpleDataSource<Boolean> dataSource = SimpleDataSource.create();
-    mMainBufferedDiskCache.contains(cacheKey)
+    mMainBufferedDiskCache
+        .contains(cacheKey)
         .continueWithTask(
             new Continuation<Boolean, Task<Boolean>>() {
               @Override
@@ -673,17 +775,31 @@ public class ImagePipeline {
     return closeableImage;
   }
 
+  public boolean hasCachedImage(@Nullable CacheKey cacheKey) {
+    MemoryCache<CacheKey, CloseableImage> memoryCache = mBitmapMemoryCache;
+    if (memoryCache == null || cacheKey == null) {
+      return false;
+    }
+    return memoryCache.contains(cacheKey);
+  }
+
   private <T> DataSource<CloseableReference<T>> submitFetchRequest(
       Producer<CloseableReference<T>> producerSequence,
       ImageRequest imageRequest,
       ImageRequest.RequestLevel lowestPermittedRequestLevelOnSubmit,
       Object callerContext,
-      @Nullable RequestListener requestListener) {
+      @Nullable RequestListener requestListener,
+      @Nullable String uiComponentId) {
     if (FrescoSystrace.isTracing()) {
       FrescoSystrace.beginSection("ImagePipeline#submitFetchRequest");
     }
-    final RequestListener finalRequestListener =
-        getRequestListenerForRequest(imageRequest, requestListener);
+    final RequestListener2 requestListener2 =
+        new InternalRequestListener(
+            getRequestListenerForRequest(imageRequest, requestListener), mRequestListener2);
+
+    if (mCallerContextVerifier != null) {
+      mCallerContextVerifier.verifyCallerContext(callerContext, false);
+    }
 
     try {
       ImageRequest.RequestLevel lowestPermittedRequestLevel =
@@ -693,7 +809,8 @@ public class ImagePipeline {
           new SettableProducerContext(
               imageRequest,
               generateUniqueFutureId(),
-              finalRequestListener,
+              uiComponentId,
+              requestListener2,
               callerContext,
               lowestPermittedRequestLevel,
               /* isPrefetch */ false,
@@ -701,7 +818,7 @@ public class ImagePipeline {
                   || !UriUtil.isNetworkUri(imageRequest.getSourceUri()),
               imageRequest.getPriority());
       return CloseableProducerToDataSourceAdapter.create(
-          producerSequence, settableProducerContext, finalRequestListener);
+          producerSequence, settableProducerContext, requestListener2);
     } catch (Exception exception) {
       return DataSources.immediateFailedDataSource(exception);
     } finally {
@@ -719,8 +836,11 @@ public class ImagePipeline {
       FrescoSystrace.beginSection("ImagePipeline#submitFetchRequest");
     }
     try {
+      final RequestListener2 requestListener2 =
+          new InternalRequestListener(requestListener, mRequestListener2);
+
       return CloseableProducerToDataSourceAdapter.create(
-          producerSequence, settableProducerContext, requestListener);
+          producerSequence, settableProducerContext, requestListener2);
     } catch (Exception exception) {
       return DataSources.immediateFailedDataSource(exception);
     } finally {
@@ -740,26 +860,29 @@ public class ImagePipeline {
       ImageRequest.RequestLevel lowestPermittedRequestLevelOnSubmit,
       Object callerContext,
       Priority priority) {
-    final RequestListener requestListener = getRequestListenerForRequest(imageRequest, null);
+    final RequestListener2 requestListener =
+        new InternalRequestListener(
+            getRequestListenerForRequest(imageRequest, null), mRequestListener2);
 
+    if (mCallerContextVerifier != null) {
+      mCallerContextVerifier.verifyCallerContext(callerContext, true);
+    }
     try {
       ImageRequest.RequestLevel lowestPermittedRequestLevel =
           ImageRequest.RequestLevel.getMax(
-              imageRequest.getLowestPermittedRequestLevel(),
-              lowestPermittedRequestLevelOnSubmit);
-      SettableProducerContext settableProducerContext = new SettableProducerContext(
-          imageRequest,
-          generateUniqueFutureId(),
-          requestListener,
-          callerContext,
-          lowestPermittedRequestLevel,
-        /* isPrefetch */ true,
-        /* isIntermediateResultExpected */ false,
-          priority);
+              imageRequest.getLowestPermittedRequestLevel(), lowestPermittedRequestLevelOnSubmit);
+      SettableProducerContext settableProducerContext =
+          new SettableProducerContext(
+              imageRequest,
+              generateUniqueFutureId(),
+              requestListener,
+              callerContext,
+              lowestPermittedRequestLevel,
+              /* isPrefetch */ true,
+              /* isIntermediateResultExpected */ false,
+              priority);
       return ProducerToDataSourceAdapter.create(
-          producerSequence,
-          settableProducerContext,
-          requestListener);
+          producerSequence, settableProducerContext, requestListener);
     } catch (Exception exception) {
       return DataSources.immediateFailedDataSource(exception);
     }
@@ -806,9 +929,7 @@ public class ImagePipeline {
     return mLazyDataSource;
   }
 
-  /**
-   * @return The CacheKeyFactory implementation used by ImagePipeline
-   */
+  /** @return The CacheKeyFactory implementation used by ImagePipeline */
   public CacheKeyFactory getCacheKeyFactory() {
     return mCacheKeyFactory;
   }

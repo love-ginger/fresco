@@ -14,13 +14,13 @@ package com.facebook.fresco.samples.showcase.imagepipeline;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
-import android.support.annotation.Nullable;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
+import androidx.annotation.Nullable;
 import com.facebook.common.executors.UiThreadImmediateExecutorService;
 import com.facebook.datasource.BaseDataSubscriber;
 import com.facebook.datasource.DataSource;
@@ -31,7 +31,6 @@ import com.facebook.drawee.backends.pipeline.info.ImageOriginUtils;
 import com.facebook.drawee.view.SimpleDraweeView;
 import com.facebook.fresco.samples.showcase.BaseShowcaseFragment;
 import com.facebook.fresco.samples.showcase.R;
-import com.facebook.fresco.samples.showcase.misc.ImageUriProvider;
 import com.facebook.fresco.samples.showcase.misc.ImageUriProvider.ImageSize;
 import com.facebook.fresco.samples.showcase.misc.ImageUriProvider.Orientation;
 import com.facebook.imagepipeline.request.ImageRequest;
@@ -45,7 +44,9 @@ public class ImagePipelinePrefetchFragment extends BaseShowcaseFragment {
 
   private Uri[] mUris;
 
-  private Button mPrefetchButton;
+  private Button mPrefetchDiskButton;
+  private Button mPrefetchEncodedButton;
+  private Button mPrefetchBitmapButton;
   private TextView mPrefetchStatus;
   private ViewGroup mDraweesHolder;
   private final Handler mHandler = new Handler();
@@ -56,7 +57,8 @@ public class ImagePipelinePrefetchFragment extends BaseShowcaseFragment {
         public void onImageLoaded(
             final String controllerId,
             final @ImageOrigin int imageOrigin,
-            final boolean successful) {
+            final boolean successful,
+            final @Nullable String ultimateProducerName) {
           mHandler.post(
               new Runnable() {
                 @Override
@@ -100,7 +102,9 @@ public class ImagePipelinePrefetchFragment extends BaseShowcaseFragment {
 
     private void updateDisplay() {
       if (mSuccessful + mFailed == mUris.length) {
-        mPrefetchButton.setEnabled(true);
+        mPrefetchDiskButton.setEnabled(true);
+        mPrefetchEncodedButton.setEnabled(true);
+        mPrefetchBitmapButton.setEnabled(true);
       }
       mPrefetchStatus.setText(
           getString(R.string.prefetch_status, mSuccessful, mUris.length, mFailed));
@@ -121,37 +125,68 @@ public class ImagePipelinePrefetchFragment extends BaseShowcaseFragment {
   public void onViewCreated(View view, @Nullable Bundle savedInstanceState) {
     super.onViewCreated(view, savedInstanceState);
 
-    final ImageUriProvider imageUriProvider = ImageUriProvider.getInstance(getContext());
     mUris =
         new Uri[] {
-          imageUriProvider.createSampleUri(ImageSize.L, Orientation.LANDSCAPE),
-          imageUriProvider.createSampleUri(ImageSize.L, Orientation.PORTRAIT),
+          sampleUris().createSampleUri(ImageSize.L, Orientation.LANDSCAPE),
+          sampleUris().createSampleUri(ImageSize.L, Orientation.PORTRAIT),
         };
 
     final Button clearCacheButton = (Button) view.findViewById(R.id.clear_cache);
-    clearCacheButton.setOnClickListener(new View.OnClickListener() {
-      @Override
-      public void onClick(View v) {
-        for (Uri uri : mUris) {
-          Fresco.getImagePipeline().evictFromCache(uri);
-        }
-      }
-    });
+    clearCacheButton.setOnClickListener(
+        new View.OnClickListener() {
+          @Override
+          public void onClick(View v) {
+            for (Uri uri : mUris) {
+              Fresco.getImagePipeline().evictFromCache(uri);
+            }
+          }
+        });
 
     mPrefetchStatus = (TextView) view.findViewById(R.id.prefetch_status);
-    mPrefetchButton = (Button) view.findViewById(R.id.prefetch_now);
-    mPrefetchButton.setOnClickListener(new View.OnClickListener() {
-      @Override
-      public void onClick(View v) {
-        mPrefetchButton.setEnabled(false);
-        final PrefetchSubscriber subscriber = new PrefetchSubscriber();
-        for (Uri uri : mUris) {
-          final DataSource<Void> ds =
-              Fresco.getImagePipeline().prefetchToDiskCache(ImageRequest.fromUri(uri), null);
-          ds.subscribe(subscriber, UiThreadImmediateExecutorService.getInstance());
-        }
-      }
-    });
+    mPrefetchDiskButton = (Button) view.findViewById(R.id.prefetch_disk_now);
+    mPrefetchDiskButton.setOnClickListener(
+        new View.OnClickListener() {
+          @Override
+          public void onClick(View v) {
+            mPrefetchDiskButton.setEnabled(false);
+            final PrefetchSubscriber subscriber = new PrefetchSubscriber();
+            for (Uri uri : mUris) {
+              final DataSource<Void> ds =
+                  Fresco.getImagePipeline().prefetchToDiskCache(ImageRequest.fromUri(uri), null);
+              ds.subscribe(subscriber, UiThreadImmediateExecutorService.getInstance());
+            }
+          }
+        });
+
+    mPrefetchEncodedButton = (Button) view.findViewById(R.id.prefetch_encoded_now);
+    mPrefetchEncodedButton.setOnClickListener(
+        new View.OnClickListener() {
+          @Override
+          public void onClick(View v) {
+            mPrefetchEncodedButton.setEnabled(false);
+            final PrefetchSubscriber subscriber = new PrefetchSubscriber();
+            for (Uri uri : mUris) {
+              final DataSource<Void> ds =
+                  Fresco.getImagePipeline().prefetchToEncodedCache(ImageRequest.fromUri(uri), null);
+              ds.subscribe(subscriber, UiThreadImmediateExecutorService.getInstance());
+            }
+          }
+        });
+
+    mPrefetchBitmapButton = (Button) view.findViewById(R.id.prefetch_bitmap_now);
+    mPrefetchBitmapButton.setOnClickListener(
+        new View.OnClickListener() {
+          @Override
+          public void onClick(View v) {
+            mPrefetchBitmapButton.setEnabled(false);
+            final PrefetchSubscriber subscriber = new PrefetchSubscriber();
+            for (Uri uri : mUris) {
+              final DataSource<Void> ds =
+                  Fresco.getImagePipeline().prefetchToBitmapCache(ImageRequest.fromUri(uri), null);
+              ds.subscribe(subscriber, UiThreadImmediateExecutorService.getInstance());
+            }
+          }
+        });
 
     mDraweesHolder = (ViewGroup) view.findViewById(R.id.drawees);
     Button toggleImages = (Button) view.findViewById(R.id.toggle_images);

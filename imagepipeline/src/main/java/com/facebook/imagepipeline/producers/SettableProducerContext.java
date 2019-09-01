@@ -9,11 +9,10 @@ package com.facebook.imagepipeline.producers;
 
 import com.facebook.imagepipeline.common.Priority;
 import com.facebook.imagepipeline.request.ImageRequest;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
-/**
- * ProducerContext that allows the client to change its internal state.
- */
+/** ProducerContext that allows the client to change its internal state. */
 @ThreadSafe
 public class SettableProducerContext extends BaseProducerContext {
 
@@ -21,7 +20,8 @@ public class SettableProducerContext extends BaseProducerContext {
     this(
         context.getImageRequest(),
         context.getId(),
-        context.getListener(),
+        context.getUiComponentId(),
+        context.getProducerListener(),
         context.getCallerContext(),
         context.getLowestPermittedRequestLevel(),
         context.isPrefetch(),
@@ -33,7 +33,8 @@ public class SettableProducerContext extends BaseProducerContext {
     this(
         overrideRequest,
         context.getId(),
-        context.getListener(),
+        context.getUiComponentId(),
+        context.getProducerListener(),
         context.getCallerContext(),
         context.getLowestPermittedRequestLevel(),
         context.isPrefetch(),
@@ -44,7 +45,7 @@ public class SettableProducerContext extends BaseProducerContext {
   public SettableProducerContext(
       ImageRequest imageRequest,
       String id,
-      ProducerListener producerListener,
+      ProducerListener2 producerListener,
       Object callerContext,
       ImageRequest.RequestLevel lowestPermittedRequestLevel,
       boolean isPrefetch,
@@ -61,8 +62,31 @@ public class SettableProducerContext extends BaseProducerContext {
         priority);
   }
 
+  public SettableProducerContext(
+      ImageRequest imageRequest,
+      String id,
+      @Nullable String uiComponentId,
+      ProducerListener2 producerListener,
+      Object callerContext,
+      ImageRequest.RequestLevel lowestPermittedRequestLevel,
+      boolean isPrefetch,
+      boolean isIntermediateResultExpected,
+      Priority priority) {
+    super(
+        imageRequest,
+        id,
+        uiComponentId,
+        producerListener,
+        callerContext,
+        lowestPermittedRequestLevel,
+        isPrefetch,
+        isIntermediateResultExpected,
+        priority);
+  }
+
   /**
    * Set whether the request is a prefetch request or not.
+   *
    * @param isPrefetch
    */
   public void setIsPrefetch(boolean isPrefetch) {
@@ -71,6 +95,7 @@ public class SettableProducerContext extends BaseProducerContext {
 
   /**
    * Set whether intermediate result is expected or not
+   *
    * @param isIntermediateResultExpected
    */
   public void setIsIntermediateResultExpected(boolean isIntermediateResultExpected) {
@@ -80,10 +105,10 @@ public class SettableProducerContext extends BaseProducerContext {
 
   /**
    * Set the priority of the request
+   *
    * @param priority
    */
   public void setPriority(Priority priority) {
     BaseProducerContext.callOnPriorityChanged(setPriorityNoCallbacks(priority));
   }
-
 }

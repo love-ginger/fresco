@@ -13,17 +13,15 @@ package com.facebook.samples.scrollperf.preferences;
 
 import android.content.Context;
 import android.content.res.TypedArray;
-import android.support.v7.preference.Preference;
-import android.support.v7.preference.PreferenceViewHolder;
 import android.util.AttributeSet;
 import android.widget.SeekBar;
 import android.widget.TextView;
+import androidx.preference.Preference;
+import androidx.preference.PreferenceViewHolder;
 import com.facebook.samples.scrollperf.R;
 import com.facebook.samples.scrollperf.util.SizeUtil;
 
-/**
- * A simple Preference containing a SeekBar in order to select a size
- */
+/** A simple Preference containing a SeekBar in order to select a size */
 public class SizePreferences extends Preference implements SeekBar.OnSeekBarChangeListener {
 
   // We always use half of the width as default
@@ -38,11 +36,7 @@ public class SizePreferences extends Preference implements SeekBar.OnSeekBarChan
 
   private int mMaxValue;
 
-  public SizePreferences(
-      Context context,
-      AttributeSet attrs,
-      int defStyleAttr,
-      int defStyleRes) {
+  public SizePreferences(Context context, AttributeSet attrs, int defStyleAttr, int defStyleRes) {
     super(context, attrs, defStyleAttr, defStyleRes);
     setLayoutResource(R.layout.size_preference);
   }
@@ -80,14 +74,10 @@ public class SizePreferences extends Preference implements SeekBar.OnSeekBarChan
   }
 
   @Override
-  public void onStartTrackingTouch(SeekBar seekBar) {
-
-  }
+  public void onStartTrackingTouch(SeekBar seekBar) {}
 
   @Override
-  public void onStopTrackingTouch(SeekBar seekBar) {
-
-  }
+  public void onStopTrackingTouch(SeekBar seekBar) {}
 
   @Override
   protected void onSetInitialValue(boolean restorePersistedValue, Object defaultValue) {

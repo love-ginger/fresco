@@ -12,9 +12,6 @@
 package com.facebook.samples.animation2.bitmap;
 
 import android.os.Bundle;
-import android.support.annotation.ColorInt;
-import android.support.annotation.Nullable;
-import android.support.v4.app.Fragment;
 import android.util.SparseArray;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -25,6 +22,9 @@ import android.widget.SeekBar;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.ToggleButton;
+import androidx.annotation.ColorInt;
+import androidx.annotation.Nullable;
+import androidx.fragment.app.Fragment;
 import com.facebook.fresco.animation.backend.AnimationBackend;
 import com.facebook.fresco.animation.bitmap.BitmapAnimationBackend;
 import com.facebook.fresco.animation.bitmap.BitmapFrameCache;
@@ -54,9 +54,7 @@ public class BitmapAnimationDebugFragment extends Fragment {
   private final BitmapAnimationBackend.FrameListener mFrameListener =
       new BitmapAnimationBackend.FrameListener() {
         @Override
-        public void onDrawFrameStart(BitmapAnimationBackend backend, int frameNumber) {
-
-        }
+        public void onDrawFrameStart(BitmapAnimationBackend backend, int frameNumber) {}
 
         @Override
         public void onFrameDrawn(
@@ -84,9 +82,7 @@ public class BitmapAnimationDebugFragment extends Fragment {
   private final BitmapFrameCache.FrameCacheListener mFrameCacheListener =
       new BitmapFrameCache.FrameCacheListener() {
         @Override
-        public void onFrameCached(
-            BitmapFrameCache bitmapFrameCache,
-            int frameNumber) {
+        public void onFrameCached(BitmapFrameCache bitmapFrameCache, int frameNumber) {
           FrameInformationHolder frameInfo = mFrameInfoMap.get(frameNumber);
           if (frameInfo != null) {
             frameInfo.setCached(true);
@@ -94,9 +90,7 @@ public class BitmapAnimationDebugFragment extends Fragment {
         }
 
         @Override
-        public void onFrameEvicted(
-            BitmapFrameCache bitmapFrameCache,
-            int frameNumber) {
+        public void onFrameEvicted(BitmapFrameCache bitmapFrameCache, int frameNumber) {
           FrameInformationHolder frameInfo = mFrameInfoMap.get(frameNumber);
           if (frameInfo != null) {
             frameInfo.setCached(false);
@@ -106,19 +100,17 @@ public class BitmapAnimationDebugFragment extends Fragment {
 
   private final BitmapAnimationCacheSelectorConfigurator.BitmapFrameCacheChangedListener
       mBitmapFrameCacheChangedListener =
-      new BitmapAnimationCacheSelectorConfigurator.BitmapFrameCacheChangedListener() {
-        @Override
-        public void onBitmapFrameCacheChanged(BitmapFrameCache bitmapFrameCache) {
-          updateBitmapFrameCache(bitmapFrameCache);
-        }
-      };
+          new BitmapAnimationCacheSelectorConfigurator.BitmapFrameCacheChangedListener() {
+            @Override
+            public void onBitmapFrameCacheChanged(BitmapFrameCache bitmapFrameCache) {
+              updateBitmapFrameCache(bitmapFrameCache);
+            }
+          };
 
   @Nullable
   @Override
   public View onCreateView(
-      LayoutInflater inflater,
-      @Nullable ViewGroup container,
-      @Nullable Bundle savedInstanceState) {
+      LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
     return inflater.inflate(R.layout.fragment_debug_bitmap, container, false);
   }
 
@@ -133,18 +125,21 @@ public class BitmapAnimationDebugFragment extends Fragment {
     mAnimatedDrawable = new AnimatedDrawable2();
     mAnimatedDrawable.setDrawListener(new AnimatedDrawable2DebugDrawListener());
 
-    view.findViewById(R.id.invalidate_button).setOnClickListener(new View.OnClickListener() {
-      @Override
-      public void onClick(View v) {
-        imageView.invalidate();
-      }
-    });
+    view.findViewById(R.id.invalidate_button)
+        .setOnClickListener(
+            new View.OnClickListener() {
+              @Override
+              public void onClick(View v) {
+                imageView.invalidate();
+              }
+            });
 
-    mAnimationControlsManager = new AnimationControlsManager(
-        mAnimatedDrawable,
-        (SeekBar) getView().findViewById(R.id.seekbar),
-        (ToggleButton) getView().findViewById(R.id.playpause),
-        getView().findViewById(R.id.reset));
+    mAnimationControlsManager =
+        new AnimationControlsManager(
+            mAnimatedDrawable,
+            (SeekBar) getView().findViewById(R.id.seekbar),
+            (ToggleButton) getView().findViewById(R.id.playpause),
+            getView().findViewById(R.id.reset));
 
     new BitmapAnimationCacheSelectorConfigurator(
         (Spinner) view.findViewById(R.id.spinner),
@@ -156,16 +151,13 @@ public class BitmapAnimationDebugFragment extends Fragment {
 
   private void updateBitmapFrameCache(BitmapFrameCache bitmapFrameCache) {
     mActiveFrameNumber = -1;
-    mBitmapAnimationBackend = ExampleBitmapAnimationFactory
-        .createColorBitmapAnimationBackend(
-            SampleData.COLORS,
-            300,
-            bitmapFrameCache);
+    mBitmapAnimationBackend =
+        ExampleBitmapAnimationFactory.createColorBitmapAnimationBackend(
+            SampleData.COLORS, 300, bitmapFrameCache);
 
     AnimationBackend backendWithInactivityCheck =
         AnimationBackendUtils.wrapAnimationBackendWithInactivityCheck(
-            getContext(),
-            mBitmapAnimationBackend);
+            getContext(), mBitmapAnimationBackend);
     setupFrameInformationContainer(mBitmapAnimationBackend);
     mAnimationControlsManager.updateBackendData(backendWithInactivityCheck);
 
@@ -184,9 +176,7 @@ public class BitmapAnimationDebugFragment extends Fragment {
     bitmapAnimationBackend.setFrameListener(mFrameListener);
   }
 
-  private FrameInformationHolder createFrameInformation(
-      LayoutInflater inflater,
-      int frameNumber) {
+  private FrameInformationHolder createFrameInformation(LayoutInflater inflater, int frameNumber) {
     View layout = inflater.inflate(R.layout.frame_info, mFrameInformationContainer, false);
     return new FrameInformationHolder(layout, frameNumber);
   }

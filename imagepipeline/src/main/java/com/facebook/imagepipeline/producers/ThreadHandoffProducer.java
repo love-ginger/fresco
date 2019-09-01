@@ -10,9 +10,7 @@ package com.facebook.imagepipeline.producers;
 import com.facebook.common.internal.Preconditions;
 import javax.annotation.Nullable;
 
-/**
- * Uses ExecutorService to move further computation to different thread
- */
+/** Uses ExecutorService to move further computation to different thread */
 public class ThreadHandoffProducer<T> implements Producer<T> {
 
   public static final String PRODUCER_NAME = "BackgroundThreadHandoffProducer";
@@ -20,21 +18,21 @@ public class ThreadHandoffProducer<T> implements Producer<T> {
   private final Producer<T> mInputProducer;
   private final ThreadHandoffProducerQueue mThreadHandoffProducerQueue;
 
-  public ThreadHandoffProducer(final Producer<T> inputProducer,
-                               final  ThreadHandoffProducerQueue inputThreadHandoffProducerQueue) {
+  public ThreadHandoffProducer(
+      final Producer<T> inputProducer,
+      final ThreadHandoffProducerQueue inputThreadHandoffProducerQueue) {
     mInputProducer = Preconditions.checkNotNull(inputProducer);
     mThreadHandoffProducerQueue = inputThreadHandoffProducerQueue;
   }
 
   @Override
   public void produceResults(final Consumer<T> consumer, final ProducerContext context) {
-    final ProducerListener producerListener = context.getListener();
-    final String requestId = context.getId();
+    final ProducerListener2 producerListener = context.getProducerListener();
     final StatefulProducerRunnable<T> statefulRunnable =
-        new StatefulProducerRunnable<T>(consumer, producerListener, PRODUCER_NAME, requestId) {
+        new StatefulProducerRunnable<T>(consumer, producerListener, context, PRODUCER_NAME) {
           @Override
           protected void onSuccess(T ignored) {
-            producerListener.onProducerFinishWithSuccess(requestId, PRODUCER_NAME, null);
+            producerListener.onProducerFinishWithSuccess(context, PRODUCER_NAME, null);
             mInputProducer.produceResults(consumer, context);
           }
 

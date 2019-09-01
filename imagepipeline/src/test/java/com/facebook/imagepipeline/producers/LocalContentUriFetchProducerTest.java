@@ -30,18 +30,16 @@ import org.mockito.stubbing.*;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.*;
 
-/**
- * Basic tests for LocalContentUriFetchProducer
- */
+/** Basic tests for LocalContentUriFetchProducer */
 @RunWith(RobolectricTestRunner.class)
-@Config(manifest= Config.NONE)
+@Config(manifest = Config.NONE)
 public class LocalContentUriFetchProducerTest {
   private static final String PRODUCER_NAME = LocalContentUriFetchProducer.PRODUCER_NAME;
   @Mock public PooledByteBufferFactory mPooledByteBufferFactory;
   @Mock public ContentResolver mContentResolver;
   @Mock public Consumer<EncodedImage> mConsumer;
   @Mock public ImageRequest mImageRequest;
-  @Mock public ProducerListener mProducerListener;
+  @Mock public ProducerListener2 mProducerListener;
   @Mock public Exception mException;
   private TestExecutorService mExecutor;
   private SettableProducerContext mProducerContext;
@@ -54,32 +52,30 @@ public class LocalContentUriFetchProducerTest {
   public void setUp() throws Exception {
     MockitoAnnotations.initMocks(this);
     mExecutor = new TestExecutorService(new FakeClock());
-    mLocalContentUriFetchProducer = new LocalContentUriFetchProducer(
-        mExecutor,
-        mPooledByteBufferFactory,
-        mContentResolver
-    );
+    mLocalContentUriFetchProducer =
+        new LocalContentUriFetchProducer(mExecutor, mPooledByteBufferFactory, mContentResolver);
     mContentUri = Uri.fromFile(mock(File.class));
 
-    mProducerContext = new SettableProducerContext(
-        mImageRequest,
-        mRequestId,
-        mProducerListener,
-        mock(Object.class),
-        ImageRequest.RequestLevel.FULL_FETCH,
-        false,
-        true,
-        Priority.MEDIUM);
+    mProducerContext =
+        new SettableProducerContext(
+            mImageRequest,
+            mRequestId,
+            mProducerListener,
+            mock(Object.class),
+            ImageRequest.RequestLevel.FULL_FETCH,
+            false,
+            true,
+            Priority.MEDIUM);
     when(mImageRequest.getSourceUri()).thenReturn(mContentUri);
     doAnswer(
-        new Answer() {
-          @Override
-          public Object answer(InvocationOnMock invocation) throws Throwable {
-            mCapturedEncodedImage =
-                EncodedImage.cloneOrNull((EncodedImage) invocation.getArguments()[0]);
-            return null;
-          }
-        })
+            new Answer() {
+              @Override
+              public Object answer(InvocationOnMock invocation) throws Throwable {
+                mCapturedEncodedImage =
+                    EncodedImage.cloneOrNull((EncodedImage) invocation.getArguments()[0]);
+                return null;
+              }
+            })
         .when(mConsumer)
         .onNewResult(notNull(EncodedImage.class), anyInt());
   }
@@ -88,8 +84,9 @@ public class LocalContentUriFetchProducerTest {
   public void testLocalContentUriFetchCancelled() {
     mLocalContentUriFetchProducer.produceResults(mConsumer, mProducerContext);
     mProducerContext.cancel();
-    verify(mProducerListener).onProducerStart(mRequestId, PRODUCER_NAME);
-    verify(mProducerListener).onProducerFinishWithCancellation(mRequestId, PRODUCER_NAME, null);
+    verify(mProducerListener).onProducerStart(mProducerContext, PRODUCER_NAME);
+    verify(mProducerListener)
+        .onProducerFinishWithCancellation(mProducerContext, PRODUCER_NAME, null);
     verify(mConsumer).onCancellation();
     mExecutor.runUntilIdle();
     verifyZeroInteractions(mPooledByteBufferFactory);
@@ -108,20 +105,22 @@ public class LocalContentUriFetchProducerTest {
 
     assertEquals(
         2,
-        mCapturedEncodedImage.getByteBufferRef()
-            .getUnderlyingReferenceTestOnly().getRefCountTestOnly());
+        mCapturedEncodedImage
+            .getByteBufferRef()
+            .getUnderlyingReferenceTestOnly()
+            .getRefCountTestOnly());
     assertSame(pooledByteBuffer, mCapturedEncodedImage.getByteBufferRef().get());
-    verify(mProducerListener).onProducerStart(mRequestId, PRODUCER_NAME);
-    verify(mProducerListener).onUltimateProducerReached(mRequestId, PRODUCER_NAME, true);
+    verify(mProducerListener).onProducerStart(mProducerContext, PRODUCER_NAME);
+    verify(mProducerListener).onUltimateProducerReached(mProducerContext, PRODUCER_NAME, true);
   }
 
   @Test(expected = RuntimeException.class)
   public void testFetchLocalContentUriFailsByThrowing() throws Exception {
     when(mPooledByteBufferFactory.newByteBuffer(any(InputStream.class))).thenThrow(mException);
     verify(mConsumer).onFailure(mException);
-    verify(mProducerListener).onProducerStart(mRequestId, PRODUCER_NAME);
-    verify(mProducerListener).onProducerFinishWithFailure(
-        mRequestId, PRODUCER_NAME, mException, null);
-    verify(mProducerListener).onUltimateProducerReached(mRequestId, PRODUCER_NAME, false);
+    verify(mProducerListener).onProducerStart(mProducerContext, PRODUCER_NAME);
+    verify(mProducerListener)
+        .onProducerFinishWithFailure(mProducerContext, PRODUCER_NAME, mException, null);
+    verify(mProducerListener).onUltimateProducerReached(mProducerContext, PRODUCER_NAME, false);
   }
 }

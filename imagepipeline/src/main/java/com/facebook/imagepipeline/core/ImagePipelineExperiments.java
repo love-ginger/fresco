@@ -10,6 +10,7 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import com.facebook.cache.common.CacheKey;
 import com.facebook.common.internal.Supplier;
+import com.facebook.common.internal.Suppliers;
 import com.facebook.common.memory.ByteArrayPool;
 import com.facebook.common.memory.PooledByteBuffer;
 import com.facebook.common.memory.PooledByteBufferFactory;
@@ -47,6 +48,10 @@ public class ImagePipelineExperiments {
   private final ProducerFactoryMethod mProducerFactoryMethod;
   private final Supplier<Boolean> mLazyDataSource;
   private final boolean mGingerbreadDecoderEnabled;
+  private final boolean mDownscaleFrameToDrawableDimensions;
+  private final int mBitmapCloseableRefType;
+  private final Supplier<Boolean> mSuppressBitmapPrefetchingSupplier;
+  private final boolean mExperimentalThreadHandoffQueueEnabled;
 
   private ImagePipelineExperiments(Builder builder) {
     mWebpSupportEnabled = builder.mWebpSupportEnabled;
@@ -68,6 +73,10 @@ public class ImagePipelineExperiments {
     }
     mLazyDataSource = builder.mLazyDataSource;
     mGingerbreadDecoderEnabled = builder.mGingerbreadDecoderEnabled;
+    mDownscaleFrameToDrawableDimensions = builder.mDownscaleFrameToDrawableDimensions;
+    mBitmapCloseableRefType = builder.mBitmapCloseableRefType;
+    mSuppressBitmapPrefetchingSupplier = builder.mSuppressBitmapPrefetchingSupplier;
+    mExperimentalThreadHandoffQueueEnabled = builder.mExperimentalThreadHandoffQueueEnabled;
   }
 
   public boolean getUseDownsamplingRatioForResizing() {
@@ -114,6 +123,10 @@ public class ImagePipelineExperiments {
     return mProducerFactoryMethod;
   }
 
+  public boolean isExperimentalThreadHandoffQueueEnabled() {
+    return mExperimentalThreadHandoffQueueEnabled;
+  }
+
   public static ImagePipelineExperiments.Builder newBuilder(
       ImagePipelineConfig.Builder configBuilder) {
     return new ImagePipelineExperiments.Builder(configBuilder);
@@ -135,6 +148,18 @@ public class ImagePipelineExperiments {
     return mGingerbreadDecoderEnabled;
   }
 
+  public boolean shouldDownscaleFrameToDrawableDimensions() {
+    return mDownscaleFrameToDrawableDimensions;
+  }
+
+  public int getBitmapCloseableRefType() {
+    return mBitmapCloseableRefType;
+  }
+
+  public Supplier<Boolean> getSuppressBitmapPrefetchingSupplier() {
+    return mSuppressBitmapPrefetchingSupplier;
+  }
+
   public static class Builder {
 
     private final ImagePipelineConfig.Builder mConfigBuilder;
@@ -153,6 +178,10 @@ public class ImagePipelineExperiments {
     private ProducerFactoryMethod mProducerFactoryMethod;
     public Supplier<Boolean> mLazyDataSource;
     public boolean mGingerbreadDecoderEnabled;
+    public boolean mDownscaleFrameToDrawableDimensions;
+    public int mBitmapCloseableRefType;
+    public Supplier<Boolean> mSuppressBitmapPrefetchingSupplier = Suppliers.of(false);
+    public boolean mExperimentalThreadHandoffQueueEnabled;
 
     public Builder(ImagePipelineConfig.Builder configBuilder) {
       mConfigBuilder = configBuilder;
@@ -185,6 +214,7 @@ public class ImagePipelineExperiments {
 
     /**
      * If true we cancel decoding jobs when the related request has been cancelled
+     *
      * @param decodeCancellationEnabled If true the decoding of cancelled requests are cancelled
      * @return The Builder itself for chaining
      */
@@ -200,8 +230,7 @@ public class ImagePipelineExperiments {
       return mConfigBuilder;
     }
 
-    public ImagePipelineConfig.Builder setWebpBitmapFactory(
-        WebpBitmapFactory webpBitmapFactory) {
+    public ImagePipelineConfig.Builder setWebpBitmapFactory(WebpBitmapFactory webpBitmapFactory) {
       mWebpBitmapFactory = webpBitmapFactory;
       return mConfigBuilder;
     }
@@ -273,6 +302,29 @@ public class ImagePipelineExperiments {
       return mConfigBuilder;
     }
 
+    public ImagePipelineConfig.Builder setShouldDownscaleFrameToDrawableDimensions(
+        boolean downscaleFrameToDrawableDimensions) {
+      mDownscaleFrameToDrawableDimensions = downscaleFrameToDrawableDimensions;
+      return mConfigBuilder;
+    }
+
+    public ImagePipelineConfig.Builder setBitmapCloseableRefType(int bitmapCloseableRefType) {
+      mBitmapCloseableRefType = bitmapCloseableRefType;
+      return mConfigBuilder;
+    }
+
+    public ImagePipelineConfig.Builder setSuppressBitmapPrefetchingSupplier(
+        Supplier<Boolean> suppressBitmapPrefetchingSupplier) {
+      mSuppressBitmapPrefetchingSupplier = suppressBitmapPrefetchingSupplier;
+      return mConfigBuilder;
+    }
+
+    public ImagePipelineConfig.Builder setExperimentalThreadHandoffQueueEnabled(
+        boolean experimentalThreadHandoffQueueEnabled) {
+      mExperimentalThreadHandoffQueueEnabled = experimentalThreadHandoffQueueEnabled;
+      return mConfigBuilder;
+    }
+
     public ImagePipelineExperiments build() {
       return new ImagePipelineExperiments(this);
     }
@@ -299,7 +351,8 @@ public class ImagePipelineExperiments {
         int bitmapPrepareToDrawMinSizeBytes,
         int bitmapPrepareToDrawMaxSizeBytes,
         boolean bitmapPrepareToDrawForPrefetch,
-        int maxBitmapSize);
+        int maxBitmapSize,
+        CloseableReferenceFactory closeableReferenceFactory);
   }
 
   public static class DefaultProducerFactoryMethod implements ProducerFactoryMethod {
@@ -324,7 +377,8 @@ public class ImagePipelineExperiments {
         int bitmapPrepareToDrawMinSizeBytes,
         int bitmapPrepareToDrawMaxSizeBytes,
         boolean bitmapPrepareToDrawForPrefetch,
-        int maxBitmapSize) {
+        int maxBitmapSize,
+        CloseableReferenceFactory closeableReferenceFactory) {
       return new ProducerFactory(
           context,
           byteArrayPool,
@@ -344,7 +398,8 @@ public class ImagePipelineExperiments {
           bitmapPrepareToDrawMinSizeBytes,
           bitmapPrepareToDrawMaxSizeBytes,
           bitmapPrepareToDrawForPrefetch,
-          maxBitmapSize);
+          maxBitmapSize,
+          closeableReferenceFactory);
     }
   }
 }

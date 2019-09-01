@@ -11,16 +11,15 @@
  */
 package com.facebook.fresco.samples.showcase.imageformat.keyframes;
 
-import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.support.annotation.Nullable;
-import android.support.annotation.RequiresApi;
-import android.support.v7.widget.SwitchCompat;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.CompoundButton;
+import androidx.annotation.Nullable;
+import androidx.annotation.RequiresApi;
+import androidx.appcompat.widget.SwitchCompat;
 import com.facebook.drawee.backends.pipeline.Fresco;
 import com.facebook.drawee.interfaces.DraweeController;
 import com.facebook.drawee.view.SimpleDraweeView;
@@ -29,22 +28,15 @@ import com.facebook.fresco.samples.showcase.CustomImageFormatConfigurator;
 import com.facebook.fresco.samples.showcase.R;
 import com.facebook.fresco.samples.showcase.misc.CheckerBoardDrawable;
 
-/**
- * Fragment using a SimpleDraweeView to display a Keyframes animation
- */
+/** Fragment using a SimpleDraweeView to display a Keyframes animation */
 public class ImageFormatKeyframesFragment extends BaseShowcaseFragment {
-
-  public static final Uri URI_KEYFRAMES_ANIMATION =
-      Uri.parse("http://frescolib.org/static/sample-images/animation.keyframes");
 
   private SimpleDraweeView mSimpleDraweeView;
 
   @Nullable
   @Override
   public View onCreateView(
-      LayoutInflater inflater,
-      @Nullable ViewGroup container,
-      @Nullable Bundle savedInstanceState) {
+      LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
     return inflater.inflate(R.layout.fragment_format_keyframes, container, false);
   }
 
@@ -64,22 +56,23 @@ public class ImageFormatKeyframesFragment extends BaseShowcaseFragment {
   private void initAnimation(View view) {
     mSimpleDraweeView = (SimpleDraweeView) view.findViewById(R.id.drawee_view);
     mSimpleDraweeView.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
-    DraweeController controller = Fresco.newDraweeControllerBuilder()
-        .setOldController(mSimpleDraweeView.getController())
-        .setUri(URI_KEYFRAMES_ANIMATION)
-        .setAutoPlayAnimations(true)
-        .build();
+    DraweeController controller =
+        Fresco.newDraweeControllerBuilder()
+            .setOldController(mSimpleDraweeView.getController())
+            .setUri(sampleUris().createKeyframesUri())
+            .setAutoPlayAnimations(true)
+            .build();
     mSimpleDraweeView.setController(controller);
 
     final SwitchCompat switchBackground = (SwitchCompat) view.findViewById(R.id.switch_background);
-    switchBackground.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-      @Override
-      public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-        mSimpleDraweeView.getHierarchy().setBackgroundImage(isChecked
-            ? new CheckerBoardDrawable(getResources())
-            : null);
-      }
-    });
+    switchBackground.setOnCheckedChangeListener(
+        new CompoundButton.OnCheckedChangeListener() {
+          @Override
+          public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+            mSimpleDraweeView
+                .getHierarchy()
+                .setBackgroundImage(isChecked ? new CheckerBoardDrawable(getResources()) : null);
+          }
+        });
   }
-
 }

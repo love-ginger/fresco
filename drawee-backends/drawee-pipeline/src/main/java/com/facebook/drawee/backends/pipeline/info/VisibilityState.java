@@ -7,15 +7,16 @@
 package com.facebook.drawee.backends.pipeline.info;
 
 import static com.facebook.drawee.backends.pipeline.info.VisibilityState.INVISIBLE;
+import static com.facebook.drawee.backends.pipeline.info.VisibilityState.UNKNOWN;
 import static com.facebook.drawee.backends.pipeline.info.VisibilityState.VISIBLE;
 import static java.lang.annotation.RetentionPolicy.SOURCE;
 
-import android.support.annotation.IntDef;
+import androidx.annotation.IntDef;
 import java.lang.annotation.Retention;
 
 @Retention(SOURCE)
 @IntDef({
-  VISIBLE, INVISIBLE,
+  UNKNOWN, VISIBLE, INVISIBLE,
 })
 public @interface VisibilityState {
 

@@ -14,8 +14,6 @@ package com.facebook.fresco.samples.showcase.imagepipeline;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.support.annotation.Nullable;
-import android.support.annotation.StringRes;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -25,6 +23,8 @@ import android.widget.BaseAdapter;
 import android.widget.Button;
 import android.widget.Spinner;
 import android.widget.TextView;
+import androidx.annotation.Nullable;
+import androidx.annotation.StringRes;
 import com.facebook.drawee.backends.pipeline.Fresco;
 import com.facebook.drawee.interfaces.DraweeController;
 import com.facebook.drawee.view.SimpleDraweeView;
@@ -71,16 +71,13 @@ public class ImagePipelineResizingFragment extends BaseShowcaseFragment {
   @Nullable
   @Override
   public View onCreateView(
-      LayoutInflater inflater,
-      @Nullable ViewGroup container,
-      @Nullable Bundle savedInstanceState) {
+      LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
     return inflater.inflate(R.layout.fragment_imagepipeline_resizing, container, false);
   }
 
   @Override
   public void onViewCreated(final View view, @Nullable Bundle savedInstanceState) {
-    final ImageUriProvider imageUriProvider = ImageUriProvider.getInstance(getContext());
-    setupImageFormatEntries(imageUriProvider);
+    setupImageFormatEntries(sampleUris());
 
     mButton = (Button) view.findViewById(R.id.button);
     mDraweeMain = (SimpleDraweeView) view.findViewById(R.id.drawee_view);
@@ -181,13 +178,14 @@ public class ImagePipelineResizingFragment extends BaseShowcaseFragment {
     final ImageRequest imageRequest =
         ImageRequestBuilder.newBuilderWithSource(imageUri)
             .setResizeOptions(resizeOptions)
-            .setImageDecodeOptions(new ImageDecodeOptionsBuilder().setTransformToSRGB(true).build())
+            .setImageDecodeOptions(new ImageDecodeOptionsBuilder().build())
             .build();
 
-    final DraweeController draweeController = Fresco.newDraweeControllerBuilder()
-        .setOldController(mDraweeMain.getController())
-        .setImageRequest(imageRequest)
-        .build();
+    final DraweeController draweeController =
+        Fresco.newDraweeControllerBuilder()
+            .setOldController(mDraweeMain.getController())
+            .setImageRequest(imageRequest)
+            .build();
 
     mDraweeMain.setController(draweeController);
   }
@@ -213,9 +211,11 @@ public class ImagePipelineResizingFragment extends BaseShowcaseFragment {
     public View getView(int position, View convertView, ViewGroup parent) {
       final LayoutInflater layoutInflater = getLayoutInflater();
 
-      final View view = convertView != null
-          ? convertView
-          : layoutInflater.inflate(android.R.layout.simple_spinner_dropdown_item, parent, false);
+      final View view =
+          convertView != null
+              ? convertView
+              : layoutInflater.inflate(
+                  android.R.layout.simple_spinner_dropdown_item, parent, false);
 
       final TextView textView = (TextView) view.findViewById(android.R.id.text1);
       textView.setText(SPINNER_ENTRIES_SIZE[position].toString());
