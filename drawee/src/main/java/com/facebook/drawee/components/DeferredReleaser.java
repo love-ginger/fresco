@@ -24,12 +24,14 @@ import javax.annotation.Nullable;
  * the resources will be released.
  */
 public abstract class DeferredReleaser {
-
-  private static @Nullable DeferredReleaser sInstance = null;
+  public interface Releasable {
+    void release();
+  }
 
   private static boolean useConcurrentImpl = false;
+  private static @Nullable DeferredReleaser sInstance = null;
 
-  public static synchronized void setUseConcurrentImpl(boolean useConcurrentImpl) {
+  public static void setUseConcurrentImpl(boolean useConcurrentImpl) {
     DeferredReleaser.useConcurrentImpl = useConcurrentImpl;
   }
 
@@ -41,14 +43,6 @@ public abstract class DeferredReleaser {
               : new DeferredReleaserLegacyImpl();
     }
     return sInstance;
-  }
-
-  static boolean isOnUiThread() {
-    return Looper.getMainLooper().getThread() == Thread.currentThread();
-  }
-
-  public interface Releasable {
-    void release();
   }
 
   /**
@@ -67,4 +61,8 @@ public abstract class DeferredReleaser {
    * @param releasable Object to cancel release of.
    */
   public abstract void cancelDeferredRelease(Releasable releasable);
+
+  static boolean isOnUiThread() {
+    return Looper.getMainLooper().getThread() == Thread.currentThread();
+  }
 }

@@ -9,119 +9,79 @@ package com.facebook.drawee.components;
 
 import android.os.Handler;
 import android.os.Looper;
-import com.facebook.common.internal.Preconditions;
+import androidx.annotation.AnyThread;
+import androidx.annotation.MainThread;
 import java.util.ArrayList;
 
-/**
- * Component that defers {@code release} until after the main Looper has completed its current
- * message. Although we would like for defer {@code release} to happen immediately after the current
- * message is done, this is not guaranteed as there might be other messages after the current one,
- * but before the deferred one, pending in the Looper's queue.
- *
- * <p>onDetach / onAttach events are used for releasing / acquiring resources. However, sometimes we
- * get an onDetach event followed by an onAttach event within the same loop. In order to avoid
- * overaggressive resource releasing / acquiring, we defer releasing. If onAttach happens within the
- * same loop, we will simply cancel corresponding deferred release, avoiding an unnecessary resource
- * release / acquire cycle. If onAttach doesn't happen before the deferred message gets executed,
- * the resources will be released.
- *
- * <p>This class is thread-safe. For releasables sent from threads without a looper, it's
- * immediately released
- */
-public class DeferredReleaserConcurrentImpl extends DeferredReleaser {
+class DeferredReleaserConcurrentImpl extends DeferredReleaser {
 
-  private static final IReleaser IMMEDIATE = new ImmediateImpl();
-  private static final ThreadLocal<IReleaser> mReleaserThreadLocal =
-      new ThreadLocal<IReleaser>() {
+  private final Object mLock = new Object();
+  private final Handler mUiHandler;
+
+  private ArrayList<Releasable> mPendingReleasables;
+  private ArrayList<Releasable> mTempList;
+
+  /*
+   * Walks through the set of pending releasables, and calls release on them.
+   * Resets the pending list to an empty list when done.
+   */
+  private final Runnable releaseRunnable =
+      new Runnable() {
+
+        @MainThread
         @Override
-        protected IReleaser initialValue() {
-          Looper looper = Looper.myLooper();
-          if (looper == null) return IMMEDIATE;
-          else return new DeferredImpl(looper);
+        public void run() {
+          synchronized (mLock) {
+            ArrayList<Releasable> tmp = mTempList;
+            mTempList = mPendingReleasables;
+            mPendingReleasables = tmp;
+          }
+
+          //noinspection ForLoopReplaceableByForEach
+          for (int i = 0; i < mTempList.size(); i++) {
+            mTempList.get(i).release();
+          }
+          mTempList.clear();
         }
       };
 
-  /**
-   * Schedules deferred release.
-   *
-   * <p>The object will be released after the current Looper's loop, unless {@code
-   * cancelDeferredRelease} is called before then.
-   *
-   * @param releasable Object to release.
-   */
+  public DeferredReleaserConcurrentImpl() {
+    mPendingReleasables = new ArrayList<>();
+    mTempList = new ArrayList<>();
+    mUiHandler = new Handler(Looper.getMainLooper());
+  }
+
+  @AnyThread
   @Override
   public void scheduleDeferredRelease(Releasable releasable) {
-    Preconditions.checkNotNull(mReleaserThreadLocal.get()).release(releasable);
-  }
-
-  /**
-   * Cancels a pending release for this object.
-   *
-   * @param releasable Object to cancel release of.
-   */
-  @Override
-  public void cancelDeferredRelease(Releasable releasable) {
-    Preconditions.checkNotNull(mReleaserThreadLocal.get()).cancel(releasable);
-  }
-
-  interface IReleaser {
-    void release(Releasable releasable);
-
-    void cancel(Releasable releasable);
-  }
-
-  static class DeferredImpl implements IReleaser {
-
-    private final ArrayList<Releasable> mPendingReleasables;
-    private final Handler mHandler;
-
-    private final Runnable releaseRunnable =
-        new Runnable() {
-          @Override
-          public void run() {
-            //noinspection ForLoopReplaceableByForEach avoid allocation of the iterator
-            for (int i = 0, size = mPendingReleasables.size(); i < size; i++) {
-              mPendingReleasables.get(i).release();
-            }
-            mPendingReleasables.clear();
-          }
-        };
-
-    public DeferredImpl(Looper looper) {
-      mPendingReleasables = new ArrayList<>();
-      mHandler = new Handler(looper);
+    if (!isOnUiThread()) {
+      releasable.release();
+      return;
     }
 
-    @Override
-    public void release(Releasable releasable) {
+    boolean shouldSchedule;
+    synchronized (mLock) {
       if (mPendingReleasables.contains(releasable)) {
         return;
       }
       mPendingReleasables.add(releasable);
-      if (mPendingReleasables.size() == 1) {
-        mHandler.post(releaseRunnable);
-      }
+      shouldSchedule = mPendingReleasables.size() == 1;
     }
 
-    @Override
-    public void cancel(Releasable releasable) {
-      int index = mPendingReleasables.indexOf(releasable);
-      if (index >= 0) {
-        int lastIndex = mPendingReleasables.size() - 1;
-        mPendingReleasables.set(index, mPendingReleasables.get(lastIndex));
-        mPendingReleasables.remove(lastIndex);
-      }
+    // Posting to the UI queue is an O(n) operation, so we only do it once.
+    // The one runnable does all the releases.
+    if (shouldSchedule) {
+      mUiHandler.post(releaseRunnable);
     }
   }
 
-  static class ImmediateImpl implements IReleaser {
-
-    @Override
-    public void release(Releasable releasable) {
-      releasable.release();
+  @AnyThread
+  @Override
+  public void cancelDeferredRelease(Releasable releasable) {
+    // it's possible an releasable is scheduled from FG thread and then reused in BG thread (common
+    // in Litho lifecycle)
+    synchronized (mLock) {
+      mPendingReleasables.remove(releasable);
     }
-
-    @Override
-    public void cancel(Releasable releasable) {}
   }
 }

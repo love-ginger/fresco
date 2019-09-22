@@ -16,6 +16,10 @@ public class FrescoExperiments {
     return false;
   }
 
+  public boolean checkStateCacheInAttach() {
+    return true;
+  }
+
   public boolean checkCacheInAttach() {
     return true;
   }
@@ -101,6 +105,10 @@ public class FrescoExperiments {
   }
 
   public boolean useNativeRounding() {
+    return true;
+  }
+
+  public boolean useFastNativeRounding() {
     return false;
   }
 }

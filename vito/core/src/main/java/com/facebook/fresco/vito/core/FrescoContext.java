@@ -15,7 +15,8 @@ import com.facebook.common.internal.VisibleForTesting;
 import com.facebook.common.logging.FLog;
 import com.facebook.fresco.vito.core.debug.DebugOverlayFactory;
 import com.facebook.fresco.vito.listener.ImageListener;
-import com.facebook.fresco.vito.options.ImageOptions;
+import com.facebook.fresco.vito.options.DecodedImageOptions;
+import com.facebook.fresco.vito.options.EncodedImageOptions;
 import com.facebook.fresco.vito.options.RoundingOptions;
 import com.facebook.fresco.vito.transformation.CircularBitmapTransformation;
 import com.facebook.imagepipeline.common.ImageDecodeOptions;
@@ -42,6 +43,7 @@ public class FrescoContext {
   private final Executor mUiThreadExecutor;
 
   private FrescoController mController;
+  private FrescoVitoPrefetcher mPrefetcher;
 
   private @Nullable ImagePipelineFactory mImagePipelineFactory;
   private @Nullable ImageDecodeOptions mCircularImageDecodeOptions;
@@ -109,9 +111,22 @@ public class FrescoContext {
     return mGlobalImageListener;
   }
 
+  public FrescoVitoPrefetcher getPrefetcher() {
+    if (mPrefetcher == null) {
+      mPrefetcher = new FrescoVitoPrefetcher(this);
+    }
+    return mPrefetcher;
+  }
+
   @Nullable
-  public ImageRequest buildImageRequest(@Nullable Uri uri, ImageOptions imageOptions) {
-    ImageRequestBuilder builder = createImageRequestBuilder(uri, imageOptions);
+  public ImageRequest buildImageRequest(@Nullable Uri uri, DecodedImageOptions imageOptions) {
+    ImageRequestBuilder builder = createDecodedImageRequestBuilder(uri, imageOptions);
+    return builder != null ? builder.build() : null;
+  }
+
+  @Nullable
+  public ImageRequest buildEncodedImageRequest(@Nullable Uri uri, EncodedImageOptions imageOptions) {
+    ImageRequestBuilder builder = createEncodedImageRequestBuilder(uri, imageOptions);
     return builder != null ? builder.build() : null;
   }
 
@@ -121,14 +136,13 @@ public class FrescoContext {
     }
   }
 
-  @TargetApi(Build.VERSION_CODES.O)
   @Nullable
-  protected ImageRequestBuilder createImageRequestBuilder(
-      @Nullable Uri uri, ImageOptions imageOptions) {
+  protected ImageRequestBuilder createDecodedImageRequestBuilder(
+      @Nullable Uri uri, DecodedImageOptions imageOptions) {
     if (uri == null) {
       return null;
     }
-    final ImageRequestBuilder imageRequestBuilder = ImageRequestBuilder.newBuilderWithSource(uri);
+    final ImageRequestBuilder imageRequestBuilder = createEncodedImageRequestBuilder(uri, imageOptions);
 
     if (mExperiments.useNativeRounding()) {
       setupNativeRounding(imageRequestBuilder, imageOptions.getRoundingOptions());
@@ -143,8 +157,6 @@ public class FrescoContext {
     if (rotationOptions != null) {
       imageRequestBuilder.setRotationOptions(rotationOptions);
     }
-
-    imageRequestBuilder.setRequestPriority(imageOptions.getPriority());
 
     if (imageOptions.getBitmapConfig() != null) {
       if (imageOptions.getRoundingOptions() != null || imageOptions.getPostprocessor() != null) {
@@ -177,6 +189,16 @@ public class FrescoContext {
     return imageRequestBuilder;
   }
 
+  @Nullable
+  protected ImageRequestBuilder createEncodedImageRequestBuilder(
+      @Nullable Uri uri, EncodedImageOptions imageOptions) {
+    if (uri == null) {
+      return null;
+    }
+    return ImageRequestBuilder.newBuilderWithSource(uri)
+        .setRequestPriority(imageOptions.getPriority());
+  }
+
   @VisibleForTesting
   protected void setupNativeRounding(
       final ImageRequestBuilder imageRequestBuilder, @Nullable RoundingOptions roundingOptions) {
@@ -190,11 +212,13 @@ public class FrescoContext {
   }
 
   private synchronized ImageDecodeOptions getCircularImageDecodeOptions(boolean antiAliased) {
+    final boolean useFastNativeRounding = mExperiments.useFastNativeRounding();
     if (antiAliased) {
       if (mCircularImageDecodeOptionsAntiAliased == null) {
         mCircularImageDecodeOptionsAntiAliased =
             ImageDecodeOptions.newBuilder()
-                .setBitmapTransformation(new CircularBitmapTransformation(true))
+                .setBitmapTransformation(
+                    new CircularBitmapTransformation(true, useFastNativeRounding))
                 .build();
       }
       return mCircularImageDecodeOptionsAntiAliased;
@@ -202,7 +226,8 @@ public class FrescoContext {
       if (mCircularImageDecodeOptions == null) {
         mCircularImageDecodeOptions =
             ImageDecodeOptions.newBuilder()
-                .setBitmapTransformation(new CircularBitmapTransformation(false))
+                .setBitmapTransformation(
+                    new CircularBitmapTransformation(false, useFastNativeRounding))
                 .build();
       }
       return mCircularImageDecodeOptions;
